@@ -41,6 +41,13 @@ virsh -c qemu:///system snapshot-revert bootstrap-testing fresh
 - The uv project uses the system interpreter only (`python-preference = "only-system"`,
   no `.python-version`), because trixie ships Python 3.13 and the VM should not be
   downloading a second one.
+- A minimal trixie install has no `python3` at all, and the uv project is `only-system`,
+  so it has nothing to build a venv from. Installing `python3-apt` covers both: `python3`
+  is a **Depends** of it (unlike the `ca-certificates` case), so apt pulls in the
+  interpreter without it being named.
+- `python3-apt` is what `ansible.builtin.apt` needs. The module probes `/usr/bin/python3`
+  and `/usr/bin/python` for the bindings and respawns into whichever has them, so a
+  uv-managed interpreter would leave it nothing to respawn into.
 
 ## Related, but do not copy from without being asked
 

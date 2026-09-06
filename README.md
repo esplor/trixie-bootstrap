@@ -30,7 +30,9 @@ scp bootstrap.sh user@host:
 ```
 
 It installs `curl` (plus `ca-certificates`, only a Recommends of `libcurl4t64` and so
-easily missed on a minimal install), then uv via the Astral installer with
+easily missed on a minimal install), then `python3-apt`, which pulls in `python3` as a
+dependency (a minimal install has neither, and Ansible's apt module needs the bindings),
+then uv via the Astral installer with
 `UV_NO_MODIFY_PATH=1`. uv lands in `~/.local/bin`; putting that on `PATH` in new shells is
 your dotfiles' job, not this script's.
 
