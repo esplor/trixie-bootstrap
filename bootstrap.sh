@@ -59,14 +59,10 @@ if ! command -v uv >/dev/null 2>&1; then
     # UV_NO_MODIFY_PATH: shell rc files belong to the dotfiles, not to this script.
     curl -fsSL https://astral.sh/uv/install.sh | UV_NO_MODIFY_PATH=1 sh
     uv_fresh=1
-    # The installer only writes the env file, so put uv on PATH for this shell too.
-    if [ -f "$HOME/.local/bin/env" ]; then
-        # shellcheck disable=SC1091
-        . "$HOME/.local/bin/env"
-    else
-        PATH="$HOME/.local/bin:$PATH"
-        export PATH
-    fi
+    # With UV_NO_MODIFY_PATH the installer writes no env file and no rc line at all,
+    # so put uv on PATH by hand for the rest of this script.
+    PATH="$HOME/.local/bin:$PATH"
+    export PATH
 fi
 success "uv: $(uv --version)"
 
@@ -74,5 +70,5 @@ success "uv: $(uv --version)"
 # ~/.profile only adds ~/.local/bin when the directory already exists at login, which it
 # did not before this run. So the next login is enough; this session needs a nudge.
 if [ "$uv_fresh" -eq 1 ]; then
-    tip "uv lives in \$HOME/.local/bin. Log out and back in, or run: . \$HOME/.local/bin/env"
+    tip "uv lives in \$HOME/.local/bin. Log out and back in, or run: . \$HOME/.profile"
 fi
