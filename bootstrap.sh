@@ -5,8 +5,9 @@
 #
 # Usage: ./bootstrap.sh
 
-# Abort on the first failing command or pipeline stage (pipefail is not POSIX,
-# so probe it in a subshell: a failed "set -o" aborts dash even with "|| true")
+# Abort on the first failing command or pipeline stage. pipefail only reached POSIX in
+# 2024 and older shells reject it, so probe it in a subshell: "set" is a special builtin
+# and a failed "set -o" exits the shell outright, before any "|| true" is consulted.
 set -e
 # shellcheck disable=SC3040
 if (set -o pipefail) 2>/dev/null; then set -o pipefail; fi
