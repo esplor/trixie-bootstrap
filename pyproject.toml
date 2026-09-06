@@ -1,0 +1,17 @@
+[project]
+name = "trixie-bootstrap"
+version = "0.1.0"
+description = "Turn a fresh Debian 13 (trixie) install into a working system"
+requires-python = ">=3.13"
+dependencies = [
+    "ansible-core>=2.21.3",
+]
+
+[tool.uv]
+# trixie ships Python 3.13; never download a managed interpreter, here or in the VM.
+python-preference = "only-system"
+
+[dependency-groups]
+dev = [
+    "ansible-lint>=26.8.0",
+]

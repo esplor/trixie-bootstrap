@@ -6,7 +6,8 @@ time. Right now that is exactly one script: `bootstrap.sh`, which makes `uv` ava
 ## Rules
 
 - Start small. One script, one job. No new abstraction until there is a second use case.
-- No uv project, no Ansible, no roles until explicitly asked for.
+- No Ansible playbooks, roles or inventory until explicitly asked for; ansible-core is
+  installed, nothing is written against it yet.
 - POSIX `sh` house style: `#!/usr/bin/env sh`, `set -e` plus the pipefail probe,
   shellcheck-clean.
 - Self-contained. Nothing here may source `~/.dotfiles`; it is not cloned yet at
@@ -37,6 +38,9 @@ virsh -c qemu:///system snapshot-revert bootstrap-testing fresh
   `--no-install-recommends` it must be named explicitly, or curl cannot verify TLS.
 - uv is installed with the Astral installer plus `UV_NO_MODIFY_PATH=1`; shell rc files
   are the dotfiles' business, not this script's.
+- The uv project uses the system interpreter only (`python-preference = "only-system"`,
+  no `.python-version`), because trixie ships Python 3.13 and the VM should not be
+  downloading a second one.
 
 ## Related, but do not copy from without being asked
 
