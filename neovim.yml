@@ -1,0 +1,78 @@
+---
+# Build and install Neovim from source, the way ~/.debian-scripts/nvim-build.sh does it,
+# but idempotent and self-cleaning. trixie ships 0.10, which is too old for the lazy.nvim
+# config in the dotfiles.
+#
+# Run with: uv run --no-dev ansible-playbook neovim.yml
+# Upgrade by bumping nvim_version; the build only runs when the installed nvim differs.
+- name: Neovim from source
+  hosts: localhost
+  connection: local
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    nvim_version: v0.12.5
+  tasks:
+    - name: Check which neovim is installed
+      ansible.builtin.command: nvim --version
+      register: nvim_installed
+      changed_when: false
+      failed_when: false
+
+    - name: Build and install neovim {{ nvim_version }}
+      # become is scoped to the two tasks that need root, so the clone and the build
+      # tree stay owned by the invoking user.
+      when: nvim_version | regex_replace('^v', '') not in (nvim_installed.stdout | default(''))
+      block:
+        - name: Install neovim build dependencies
+          become: true
+          ansible.builtin.apt:
+            name:
+              # git is here because bootstrap.sh does not install it and the git module
+              # needs the binary; the rest come from nvim-build.sh.
+              - git
+              - ninja-build
+              - gettext
+              - cmake
+              - unzip
+              - curl
+              - build-essential
+              - luarocks
+              - python3-venv
+            state: present
+            install_recommends: false
+            update_cache: true
+            cache_valid_time: 3600
+
+        - name: Create a build directory
+          ansible.builtin.tempfile:
+            state: directory
+            suffix: neovim
+          register: nvim_build
+
+        - name: Clone neovim {{ nvim_version }}
+          ansible.builtin.git:
+            repo: https://github.com/neovim/neovim
+            dest: "{{ nvim_build.path }}"
+            version: "{{ nvim_version }}"
+            depth: 1
+            single_branch: true
+
+        - name: Build neovim
+          ansible.builtin.command:
+            cmd: make CMAKE_BUILD_TYPE=RelWithDebInfo
+            chdir: "{{ nvim_build.path }}"
+          changed_when: true
+
+        - name: Install neovim into /usr/local
+          become: true
+          ansible.builtin.command:
+            cmd: make install
+            chdir: "{{ nvim_build.path }}"
+          changed_when: true
+      always:
+        # In always, so a failed build does not leave its tree behind either.
+        - name: Remove the build directory
+          ansible.builtin.file:
+            path: "{{ nvim_build.path }}"
+            state: absent
+          when: nvim_build.path is defined

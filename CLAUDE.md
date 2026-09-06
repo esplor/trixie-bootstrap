@@ -6,8 +6,8 @@ time. Right now that is exactly one script: `bootstrap.sh`, which makes `uv` ava
 ## Rules
 
 - Start small. One script, one job. No new abstraction until there is a second use case.
-- One playbook, `base.yml`, run against localhost. No roles, no inventory, no
-  `ansible.cfg`, no Makefile until explicitly asked for.
+- Playbooks (`base.yml`, `neovim.yml`) run against localhost. No roles, no inventory,
+  no `ansible.cfg`, no Makefile until explicitly asked for.
 - POSIX `sh` house style: `#!/usr/bin/env sh`, `set -e` plus the pipefail probe,
   shellcheck-clean.
 - Self-contained. Nothing here may source `~/.dotfiles`; it is not cloned yet at
@@ -45,6 +45,8 @@ virsh -c qemu:///system snapshot-revert debian-bootstrap-claude fresh
   so it has nothing to build a venv from. Installing `python3-apt` covers both: `python3`
   is a **Depends** of it (unlike the `ca-certificates` case), so apt pulls in the
   interpreter without it being named.
+- trixie's neovim is 0.10, too old for the dotfiles' lazy.nvim config, hence the source
+  build in `neovim.yml`. The build takes ~110s on a 2 vCPU VM.
 - stow folds: if `~/.config` does not exist, stow makes it a symlink into the dotfiles
   package, and everything later written to `~/.config` lands inside the dotfiles repo.
   Create the directory before stowing. Verified by experiment, not by folklore.

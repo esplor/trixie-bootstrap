@@ -67,6 +67,20 @@ It needs root for apt, so add `-K` when sudo asks for a password. The play pins
 `python3-apt` bindings rather than respawning out of `.venv`, and it warns that no
 inventory was parsed, which is expected: the only host is the implicit localhost.
 
+## Neovim from source
+
+trixie ships neovim 0.10, too old for the lazy.nvim config in the dotfiles, so `neovim.yml`
+builds the pinned stable tag the way `nvim-build.sh` did, and installs it to `/usr/local`:
+
+```sh
+uv run --no-dev ansible-playbook neovim.yml
+```
+
+The first run installs the build dependencies, shallow-clones the tag and compiles, about
+two minutes on a 2-core VM, then deletes the build tree. Later runs compare
+`nvim --version` against `nvim_version` and skip the whole block, so upgrading means
+bumping that variable.
+
 ## Notes
 
 - POSIX `sh`, shellcheck-clean, no dependency on anything outside a stock trixie install.
