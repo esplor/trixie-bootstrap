@@ -13,14 +13,16 @@
     - name: Install base packages
       ansible.builtin.apt:
         name:
-          - stow
-          - rsync
-          - tree
-          - htop
-          - btop
-          - psmisc
-          - build-essential
           - bash-completion
+          - bat  # Debian renames the binary to batcat
+          - btop
+          - build-essential
+          - htop
+          - psmisc
+          - ripgrep
+          - rsync
+          - stow
+          - tree
         state: present
         install_recommends: false
         update_cache: true
