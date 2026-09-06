@@ -1,10 +1,15 @@
 # claude-trixie-bootstrap
 
 Turn a fresh Debian 13 (trixie) install into a working system, built one small step at a
-time. Right now that is exactly one script: `bootstrap.sh`, which makes `uv` available.
+time. Right now that is `bootstrap.sh`, which makes `uv` available, plus two playbooks
+(`base.yml`, `neovim.yml`) run through it.
+
+Explanations of why things are the way they are go in `NOTES.md`, and get written as they
+are discovered. `README.md` stays minimal: the commands, nothing else.
 
 ## Rules
 
+- `README.md` is the commands only. Anything explanatory belongs in `NOTES.md`.
 - Start small. One script, one job. No new abstraction until there is a second use case.
 - Playbooks (`base.yml`, `neovim.yml`) run against localhost. No roles, no inventory,
   no `ansible.cfg`, no Makefile until explicitly asked for.
