@@ -22,6 +22,9 @@ alert() { printf '%b=== %s ===%b\n' "$RED" "$1" "$NC" >&2; }
 tip() { printf '%b*** TIP! %s ***%b\n' "$GREEN" "$1" "$NC"; }
 
 # apt-get update is wanted by more than one step below, but only once per run.
+# The installs run through "sudo env DEBIAN_FRONTEND=noninteractive" because a
+# non-tty run (ssh host 'sh bootstrap.sh') makes debconf try, and fail, three
+# frontends before falling back to that anyway. sudo strips the variable, hence env.
 apt_updated=0
 apt_update_once() {
     if [ "$apt_updated" -eq 0 ]; then
@@ -36,7 +39,7 @@ apt_update_once() {
 if ! command -v curl >/dev/null 2>&1; then
     alert "curl not found, installing curl and ca-certificates"
     apt_update_once
-    sudo apt-get install -y --no-install-recommends curl ca-certificates
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl ca-certificates
 fi
 success "curl: $(curl --version | head -n 1)"
 
@@ -49,7 +52,7 @@ if ! /usr/bin/python3 -c 'import apt_pkg' >/dev/null 2>&1; then
     alert "python3 with apt bindings not found, installing python3-apt"
     apt_update_once
     # python3 is a Depends of python3-apt, so apt pulls the interpreter in itself.
-    sudo apt-get install -y --no-install-recommends python3-apt
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3-apt
 fi
 success "python3: $(/usr/bin/python3 --version)"
 
