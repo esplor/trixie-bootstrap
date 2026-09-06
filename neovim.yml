@@ -26,19 +26,16 @@
         - name: Install neovim build dependencies
           become: true
           ansible.builtin.apt:
+            # Exactly upstream's list for this tag (BUILD.md, Ubuntu/Debian). nvim-build.sh
+            # also installed unzip, luarocks and python3-venv; those three are mason
+            # runtime dependencies, not build ones. See NOTES.md.
             name:
-              # git is normally already here, since you cloned this repo to get the
-              # bootstrap, but the git module needs the binary, so name it rather than
-              # assume it. The rest come from nvim-build.sh.
+              - build-essential
+              - cmake
+              - curl
+              - gettext
               - git
               - ninja-build
-              - gettext
-              - cmake
-              - unzip
-              - curl
-              - build-essential
-              - luarocks
-              - python3-venv
             state: present
             install_recommends: false
             update_cache: true
