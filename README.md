@@ -38,6 +38,35 @@ your dotfiles' job, not this script's.
 
 Re-running on a configured machine is a no-op that just reports versions.
 
+## The uv project
+
+`ansible-core` is a regular dependency, `ansible-lint` a dev one. `uv sync` installs the
+default groups, dev included, which is what you want in a checkout you work on. On a
+machine that is only a target, skip the lint tooling:
+
+```sh
+uv sync --no-dev
+```
+
+The project pins `python-preference = "only-system"`, so uv uses trixie's own Python 3.13
+and never downloads an interpreter of its own.
+
+## The base playbook
+
+`base.yml` installs the packages every machine wants, against this machine:
+
+```sh
+uv run --no-dev ansible-playbook base.yml
+```
+
+`uv run` syncs the default groups first, so without `--no-dev` it reinstalls the lint
+tooling that `uv sync --no-dev` just left out.
+
+It needs root for apt, so add `-K` when sudo asks for a password. The play pins
+`ansible_python_interpreter` to `/usr/bin/python3` so the apt module finds the
+`python3-apt` bindings rather than respawning out of `.venv`, and it warns that no
+inventory was parsed, which is expected: the only host is the implicit localhost.
+
 ## Notes
 
 - POSIX `sh`, shellcheck-clean, no dependency on anything outside a stock trixie install.

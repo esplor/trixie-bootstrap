@@ -1,0 +1,37 @@
+---
+# Base packages every fresh trixie machine wants, installed against this machine.
+# Run with: uv run --no-dev ansible-playbook base.yml
+- name: Base packages for a fresh trixie machine
+  hosts: localhost
+  connection: local
+  become: true
+  vars:
+    # The apt module needs python3-apt, which is built for the system interpreter.
+    # Pin it here so the module finds the bindings instead of respawning out of .venv.
+    ansible_python_interpreter: /usr/bin/python3
+  tasks:
+    - name: Install base packages
+      ansible.builtin.apt:
+        name:
+          - stow
+          - rsync
+          - tree
+          - htop
+          - btop
+          - psmisc
+          - build-essential
+          - bash-completion
+        state: present
+        install_recommends: false
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Ensure ~/.config exists, so stow links into it instead of folding it
+      # Play-level become is root, whose HOME is /root, and gathered facts keep saying
+      # /root even under become: false. lookup() reads the controller's env, which is
+      # right because this play only ever targets localhost.
+      become: false
+      ansible.builtin.file:
+        path: "{{ lookup('env', 'HOME') }}/.config"
+        state: directory
+        mode: "0755"

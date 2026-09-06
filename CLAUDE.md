@@ -6,8 +6,8 @@ time. Right now that is exactly one script: `bootstrap.sh`, which makes `uv` ava
 ## Rules
 
 - Start small. One script, one job. No new abstraction until there is a second use case.
-- No Ansible playbooks, roles or inventory until explicitly asked for; ansible-core is
-  installed, nothing is written against it yet.
+- One playbook, `base.yml`, run against localhost. No roles, no inventory, no
+  `ansible.cfg`, no Makefile until explicitly asked for.
 - POSIX `sh` house style: `#!/usr/bin/env sh`, `set -e` plus the pipefail probe,
   shellcheck-clean.
 - Self-contained. Nothing here may source `~/.dotfiles`; it is not cloned yet at
@@ -45,6 +45,12 @@ virsh -c qemu:///system snapshot-revert debian-bootstrap-claude fresh
   so it has nothing to build a venv from. Installing `python3-apt` covers both: `python3`
   is a **Depends** of it (unlike the `ca-certificates` case), so apt pulls in the
   interpreter without it being named.
+- stow folds: if `~/.config` does not exist, stow makes it a symlink into the dotfiles
+  package, and everything later written to `~/.config` lands inside the dotfiles repo.
+  Create the directory before stowing. Verified by experiment, not by folklore.
+- With `become: true` at play level, facts are gathered as root, so `ansible_env.HOME`
+  and `ansible_user_dir` are `/root` for the whole play, even inside a `become: false`
+  task. Use `lookup('env', 'HOME')` for the invoking user's home in a localhost play.
 - `python3-apt` is what `ansible.builtin.apt` needs. The module probes `/usr/bin/python3`
   and `/usr/bin/python` for the bindings and respawns into whichever has them, so a
   uv-managed interpreter would leave it nothing to respawn into.
