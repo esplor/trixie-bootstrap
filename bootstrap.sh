@@ -53,18 +53,20 @@ if ! /usr/bin/python3 -c 'import apt_pkg' >/dev/null 2>&1; then
 fi
 success "python3: $(/usr/bin/python3 --version)"
 
-# 3. uv itself.
+# 3. uv itself. A non-login shell (ssh host 'sh bootstrap.sh', cron) never reads
+#    ~/.profile, so ~/.local/bin is off PATH and "command -v uv" cannot see an existing
+#    install. Check the install location too, or every re-run downloads uv again.
 uv_fresh=0
-if ! command -v uv >/dev/null 2>&1; then
+if ! command -v uv >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/uv" ]; then
     alert "uv not found, installing via the Astral installer"
     # UV_NO_MODIFY_PATH: shell rc files belong to the dotfiles, not to this script.
     curl -fsSL https://astral.sh/uv/install.sh | UV_NO_MODIFY_PATH=1 sh
     uv_fresh=1
-    # With UV_NO_MODIFY_PATH the installer writes no env file and no rc line at all,
-    # so put uv on PATH by hand for the rest of this script.
-    PATH="$HOME/.local/bin:$PATH"
-    export PATH
 fi
+# With UV_NO_MODIFY_PATH the installer writes no env file and no rc line, so put uv on
+# PATH by hand, whether it was just installed or was already there unseen.
+PATH="$HOME/.local/bin:$PATH"
+export PATH
 success "uv: $(uv --version)"
 
 # A child process cannot put uv on the PATH of the shell that started it, and Debian's
