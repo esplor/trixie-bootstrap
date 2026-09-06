@@ -70,6 +70,9 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 success "uv: $(uv --version)"
 
+# A child process cannot put uv on the PATH of the shell that started it, and Debian's
+# ~/.profile only adds ~/.local/bin when the directory already exists at login, which it
+# did not before this run. So the next login is enough; this session needs a nudge.
 if [ "$uv_fresh" -eq 1 ]; then
-    tip "uv lives in \$HOME/.local/bin; make sure that is on PATH in new shells"
+    tip "uv lives in \$HOME/.local/bin. Log out and back in, or run: . \$HOME/.local/bin/env"
 fi
