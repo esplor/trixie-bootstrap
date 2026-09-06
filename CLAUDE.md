@@ -12,6 +12,7 @@ time. Right now that is exactly one script: `bootstrap.sh`, which makes `uv` ava
 - Self-contained. Nothing here may source `~/.dotfiles`; it is not cloned yet at
   bootstrap time.
 - Idempotent. Re-running on a configured machine is a no-op that just reports versions.
+- Never `git commit` or `git push` unless asked. Edit the files and stop there.
 
 ## Testing
 
