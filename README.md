@@ -10,11 +10,11 @@ later runs through uv.
 
 A minimal trixie install has no git and no CA certificates, so cloning fails before it
 starts. `ca-certificates` is a Recommends of both `git` and `libcurl3t64-gnutls` (git's
-HTTPS transport), never a Depends, so a `--no-install-recommends` install of git leaves
-you with `server certificate verification failed. CAfile: none`. Install all three:
+HTTPS transport), never a Depends, so with `--no-install-recommends` it has to be named
+or the clone dies with `server certificate verification failed. CAfile: none`:
 
 ```sh
-sudo apt update && sudo apt install ca-certificates git openssh-client
+sudo apt update && sudo apt install --no-install-recommends ca-certificates git openssh-client
 ```
 
 Or skip the clone entirely and copy the single script over from another machine:
