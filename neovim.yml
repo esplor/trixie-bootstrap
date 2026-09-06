@@ -27,8 +27,9 @@
           become: true
           ansible.builtin.apt:
             name:
-              # git is here because bootstrap.sh does not install it and the git module
-              # needs the binary; the rest come from nvim-build.sh.
+              # git is normally already here, since you cloned this repo to get the
+              # bootstrap, but the git module needs the binary, so name it rather than
+              # assume it. The rest come from nvim-build.sh.
               - git
               - ninja-build
               - gettext
