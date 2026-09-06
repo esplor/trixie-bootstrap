@@ -6,6 +6,23 @@ Right now that is exactly one script, `bootstrap.sh`, which brings a bare instal
 point where [uv](https://docs.astral.sh/uv/) is available. Everything built on top of this
 later runs through uv.
 
+## Getting it onto a minimal install
+
+A minimal trixie install has no git and no CA certificates, so cloning fails before it
+starts. `ca-certificates` is a Recommends of both `git` and `libcurl3t64-gnutls` (git's
+HTTPS transport), never a Depends, so a `--no-install-recommends` install of git leaves
+you with `server certificate verification failed. CAfile: none`. Install all three:
+
+```sh
+sudo apt update && sudo apt install ca-certificates git openssh-client
+```
+
+Or skip the clone entirely and copy the single script over from another machine:
+
+```sh
+scp bootstrap.sh user@host:
+```
+
 ## Usage
 
 ```sh
