@@ -35,8 +35,8 @@ virsh -c qemu:///system snapshot-revert bootstrap-testing fresh
 
 - `ca-certificates` is a **Recommends** of `libcurl4t64`, not a Depends. With
   `--no-install-recommends` it must be named explicitly, or curl cannot verify TLS.
-- uv is installed with the Astral installer plus `--no-modify-path`; shell rc files are
-  the dotfiles' business, not this script's.
+- uv is installed with the Astral installer plus `UV_NO_MODIFY_PATH=1`; shell rc files
+  are the dotfiles' business, not this script's.
 
 ## Related, but do not copy from without being asked
 

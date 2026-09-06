@@ -34,8 +34,8 @@ success "curl: $(curl --version | head -n 1)"
 uv_fresh=0
 if ! command -v uv >/dev/null 2>&1; then
     alert "uv not found, installing via the Astral installer"
-    # --no-modify-path: shell rc files belong to the dotfiles, not to this script.
-    curl -fsSL https://astral.sh/uv/install.sh | sh -s -- --no-modify-path
+    # UV_NO_MODIFY_PATH: shell rc files belong to the dotfiles, not to this script.
+    curl -fsSL https://astral.sh/uv/install.sh | UV_NO_MODIFY_PATH=1 sh
     uv_fresh=1
     # The installer only writes the env file, so put uv on PATH for this shell too.
     if [ -f "$HOME/.local/bin/env" ]; then

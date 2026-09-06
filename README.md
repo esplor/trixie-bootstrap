@@ -31,7 +31,7 @@ scp bootstrap.sh user@host:
 
 It installs `curl` (plus `ca-certificates`, only a Recommends of `libcurl4t64` and so
 easily missed on a minimal install), then uv via the Astral installer with
-`--no-modify-path`. uv lands in `~/.local/bin`; putting that on `PATH` in new shells is
+`UV_NO_MODIFY_PATH=1`. uv lands in `~/.local/bin`; putting that on `PATH` in new shells is
 your dotfiles' job, not this script's.
 
 Re-running on a configured machine is a no-op that just reports versions.
