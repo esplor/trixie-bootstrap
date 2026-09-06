@@ -1,6 +1,6 @@
 ---
 # Base packages every fresh trixie machine wants, installed against this machine.
-# Run with: uv run --no-dev ansible-playbook base.yml
+# Run with: uv run ansible-playbook base.yml
 - name: Base packages for a fresh trixie machine
   hosts: localhost
   connection: local

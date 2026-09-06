@@ -10,6 +10,9 @@ dependencies = [
 [tool.uv]
 # trixie ships Python 3.13; never download a managed interpreter, here or in the VM.
 python-preference = "only-system"
+# Dev tooling is opt-in (uv run --group dev ansible-lint), so a plain sync or run on a
+# target machine cannot drag ansible-lint and its dependencies along.
+default-groups = []
 
 [dependency-groups]
 dev = [

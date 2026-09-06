@@ -3,7 +3,7 @@
 # but idempotent and self-cleaning. trixie ships 0.10, which is too old for the lazy.nvim
 # config in the dotfiles.
 #
-# Run with: uv run --no-dev ansible-playbook neovim.yml
+# Run with: uv run ansible-playbook neovim.yml
 # Upgrade by bumping nvim_version; the build only runs when the installed nvim differs.
 - name: Neovim from source
   hosts: localhost
