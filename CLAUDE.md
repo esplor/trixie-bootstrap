@@ -17,7 +17,7 @@ time. Right now that is exactly one script: `bootstrap.sh`, which makes `uv` ava
 
 ## Testing
 
-Tested in a virt-manager VM (`bootstrap-testing`, `qemu:///system`). A minimal trixie
+Tested in a virt-manager VM (`debian-bootstrap-claude`, `qemu:///system`). A minimal trixie
 install has no git, curl or wget, so the script is copied in over ssh rather than cloned:
 
 ```sh
@@ -28,8 +28,8 @@ scp bootstrap.sh trixie: && ssh -t trixie 'sh bootstrap.sh'
 and revert between runs to test the cold path; skip the revert to test the re-run path:
 
 ```sh
-virsh -c qemu:///system snapshot-create-as bootstrap-testing fresh
-virsh -c qemu:///system snapshot-revert bootstrap-testing fresh
+virsh -c qemu:///system snapshot-create-as debian-bootstrap-claude fresh
+virsh -c qemu:///system snapshot-revert debian-bootstrap-claude fresh
 ```
 
 ## Facts (do not re-derive)
