@@ -452,8 +452,8 @@
       # Debian's own Build-Depends for waybar 0.15.0-1, minus what this build does not
       # ask for. Every optional feature in meson_options.txt is "auto", so the packages
       # named here are exactly what decides which modules get compiled in, and the ones
-      # left out (mpd, jack, sndio, gps, cava, pipewire, mpris, upower, wireplumber) are
-      # for modules the config does not use. libinput-dev is doing double duty: keyboard-
+      # left out (mpd, jack, sndio, gps, cava, pipewire, mpris, wireplumber) are for
+      # modules the config does not use. libinput-dev is doing double duty: keyboard-
       # state needs libevdev and backlight needs libudev, and both are Depends of it.
       ansible.builtin.apt:
         name:
@@ -474,6 +474,7 @@
           - libpulse-dev  # pulseaudio
           - libsigc++-2.0-dev
           - libspdlog-dev  # meson wants >= 1.15.2, trixie has exactly that
+          - libupower-glib-dev  # upower, which sees batteries sysfs never exposes
           - libwayland-dev
           - libxkbregistry-dev  # not optional in meson.build, unlike the rest
           - meson

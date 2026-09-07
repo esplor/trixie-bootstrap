@@ -221,10 +221,23 @@ failed. Nothing in the source build collides with a path dpkg owns.
 Every optional feature in `meson_options.txt` is `auto`, so **the -dev packages installed
 are what decides which modules get compiled in**. That is why the build-dep list is Debian's
 own `Build-Depends` for 0.15.0-1 minus the entries for modules the config does not use
-(mpd, jack, sndio, gps, cava, pipewire, mpris, upower, wireplumber). Two of them are not
-obvious: `libinput-dev` is named for `keyboard-state`, which needs libevdev, and it also
-brings `libudev-dev` for `backlight`, both as hard Depends. `libxkbregistry-dev` is the one
+(mpd, jack, sndio, gps, cava, pipewire, mpris, wireplumber). Two of them are not obvious:
+`libinput-dev` is named for `keyboard-state`, which needs libevdev, and it also brings
+`libudev-dev` for `backlight`, both as hard Depends. `libxkbregistry-dev` is the one
 dependency in `meson.build` with no feature option at all.
+
+`libupower-glib-dev` is the one entry kept for a module the config does not use yet. The
+`battery` module reads `/sys/class/power_supply` directly, which structurally cannot show
+a bluetooth headset, a wireless mouse or a controller, because none of them appear there.
+Only UPower enumerates those. Compiling the module in costs one build dependency and
+decides nothing; the bar shows a peripheral battery when, and only when, the dotfiles'
+waybar config grows an `upower` block.
+
+Note what the version guard cannot see. `waybar_needs_build` compares the installed
+version against `waybar_version`, so changing a build dependency or a meson option on a
+machine already running 0.15.0 rebuilds nothing. Force it with
+`-e '{"waybar_needs_build": true}'`, in JSON: the `key=value` form passes the string
+`"true"`, and ansible-core 2.19 and later refuse a conditional that is not a real boolean.
 
 `-Drfkill=enabled` is needed because that option's guard is `get_option('rfkill').enabled()`
 rather than `.allowed()`. A feature option left at `auto` is not `enabled()`, so the default
