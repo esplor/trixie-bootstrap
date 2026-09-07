@@ -54,7 +54,14 @@
           - kitty  # Mod+Shift+Return
           - network-manager-applet  # the tray icon, via /etc/xdg/autostart
           - pavucontrol  # waybar's pulseaudio on-click
-          - pipewire
+          # Debian's recommended set for an audio desktop, and a metapackage so every
+          # piece arrives as a Depends. Naming pipewire and wireplumber directly would
+          # lose the two that are only Recommends of wireplumber: pipewire-pulse, which
+          # is the PulseAudio server waybar's pulseaudio module, pavucontrol and every
+          # browser and Flatpak app actually talk to, and libspa-0.2-bluetooth, without
+          # which bluetooth audio is silent. It also pulls wireplumber, hence wpctl,
+          # behind the XF86Audio volume binds.
+          - pipewire-audio
           - playerctl  # the XF86Audio play/stop/prev/next binds
           # deb822_repository parses and writes .sources files through python3-debian and
           # fails outright without it, the same way the apt module needs python3-apt. Named
@@ -72,7 +79,6 @@
           - ukui-polkit  # the polkit agent config.kdl spawns at startup
           - unzip  # unpacks the Nerd Font archives, below
           - waybar
-          - wireplumber  # wpctl, behind the XF86Audio volume binds
           - wofi  # Mod+Space
           - xdg-desktop-portal
           - xdg-desktop-portal-gnome  # niri-portals.conf prefers gnome, then gtk

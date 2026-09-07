@@ -21,6 +21,31 @@ That is a different question from relying on a package's `Depends`. `pkg-config`
 `libxcb1-dev` of `libxcb-cursor-dev`, so naming them is noise. Same reasoning as
 `python3-apt` pulling in `python3`: a Depends is guaranteed, a Recommends is not.
 
+## pipewire-audio, not pipewire and wireplumber
+
+The obvious spelling of "install audio" is `pipewire` plus `wireplumber`, and it is wrong
+here for the same reason `ca-certificates` had to be named next to curl. `pipewire-pulse`
+and `libspa-0.2-bluetooth` are **Recommends** of `wireplumber`, not Depends, so
+`install_recommends: false` drops both.
+
+Losing `pipewire-pulse` is the expensive one, and it is invisible until something tries to
+make a sound. It is the PulseAudio server, and almost nothing speaks PipeWire natively:
+waybar's `pulseaudio` module, `pavucontrol`, the browser through cubeb, and a Flatpak app
+through its `--socket=pulseaudio` permission all talk the PulseAudio client API and reach
+PipeWire only through that shim. Without it the machine is simply mute, while `pactl info`
+on a working one reports `Server Name: PulseAudio (on PipeWire)`. Losing
+`libspa-0.2-bluetooth` costs bluetooth audio in the same silent way.
+
+`pipewire-audio` is Debian's metapackage for exactly this set, and everything in it is a
+Depends, so naming the one package is guaranteed to bring `pipewire-pulse`,
+`libspa-0.2-bluetooth`, `wireplumber` (hence `pipewire`, hence `wpctl` behind the volume
+binds) and `pipewire-alsa`.
+
+`pipewire-alsa` is the only piece nothing here asks for. It repoints ALSA's `default` PCM
+at PipeWire, which matters for programs that talk the raw ALSA API rather than libpulse:
+wine, older games, `aplay`, sox, anything pinned to `hw:0`. None of the desktop's own
+software does, but it arrives with the metapackage and costs nothing.
+
 ## The build dependencies in the notebook were wrong
 
 Upstream publishes the real lists, in `DEPS_APT` in niri's `.github/workflows/ci.yml` and
