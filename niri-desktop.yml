@@ -76,6 +76,10 @@
           # pywal reports "Set the new wallpaper" whether or not it found a setter.
           - swaybg
           - swaylock  # Super+L
+          # Here rather than in base.yml because the stowed tmux.conf names palette
+          # indices, which pywal fills in through kitty. Without the desktop tmux
+          # still runs, it just takes its colors from whatever terminal is attached.
+          - tmux
           - ukui-polkit  # the polkit agent config.kdl spawns at startup
           - unzip  # unpacks the Nerd Font archives, below
           - waybar

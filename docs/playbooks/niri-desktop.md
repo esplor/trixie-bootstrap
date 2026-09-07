@@ -309,3 +309,16 @@ nothing. That matters more than it sounds, because waybar's `style.css` opens wi
 missing colour file is a hard parse error, so waybar exits 1, and systemd gives up after
 five restarts with "Start request repeated too quickly". A desktop with no bar at all,
 from one absent font-and-image utility.
+
+## tmux is here rather than in base.yml
+
+An odd home for a terminal multiplexer, and it is the colors that put it there. The stowed
+`tmux.conf` names palette indices, `colour0` to `colour15`, instead of hex, so the bar
+takes whatever the attached terminal holds in those slots, and on this desktop that is
+kitty carrying pywal's palette.
+
+The coupling is softer than it sounds. Nothing breaks without the desktop: under any other
+terminal tmux falls back to that terminal's own sixteen colors and the bar stays readable.
+What it loses is the wallpaper. The parts that do need a capable terminal, the `─` rule on
+the status bar's upper row and the `RGB` override, want UTF-8 and truecolor rather than
+kitty specifically. `screen` stays in `base.yml`, where it is a server requirement.
