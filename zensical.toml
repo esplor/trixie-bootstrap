@@ -1,0 +1,23 @@
+# Config for the docs site under docs/, served with:
+#   uv run --group dev zensical serve
+#
+# No site_url: nothing is published yet, and it is only a prerequisite for instant
+# navigation, instant previews and custom error pages. Add it when there is a host.
+[project]
+site_name = "trixie-bootstrap"
+site_description = "Turn a fresh Debian 13 (trixie) install into a working system"
+
+# Explicit, because the default is derived from the folder structure and sorts
+# alphabetically, which would put base.yml ahead of the bootstrap that has to run first.
+nav = [
+  { "Home" = "index.md" },
+  { "Getting the repo onto a minimal install" = "getting-started.md" },
+  { "bootstrap.sh" = "bootstrap.md" },
+  { "The uv project" = "uv-project.md" },
+  { "Playbooks" = [
+    "playbooks/base.md",
+    "playbooks/neovim.md",
+    "playbooks/niri-desktop.md",
+  ] },
+  { "Conventions" = "conventions.md" },
+]

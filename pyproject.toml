@@ -17,4 +17,5 @@ default-groups = []
 [dependency-groups]
 dev = [
     "ansible-lint>=26.8.0",
+    "zensical>=0.0.59",
 ]

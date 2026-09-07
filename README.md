@@ -11,3 +11,7 @@ uv run ansible-playbook niri-desktop.yml # niri desktop from source
 ```
 
 Why any of it looks the way it does: [docs/](docs/index.md).
+
+```sh
+uv run --group dev zensical serve        # preview the docs on localhost:8000
+```
