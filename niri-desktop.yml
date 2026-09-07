@@ -1,0 +1,585 @@
+---
+# The niri desktop: the compositor and xwayland-satellite built from source, plus every
+# package the dotfiles' niri, waybar and kitty configs reach for at runtime.
+#
+# Run with: uv run ansible-playbook niri-desktop.yml
+# Upgrade by bumping niri_version or xwayland_satellite_version; a build only runs when
+# the installed version differs.
+#
+# Configuration is not this playbook's business. ~/.config/{niri,waybar,kitty} are stow
+# symlinks into ~/.dotfiles, so this installs software and stops there.
+#
+# Unlike the other playbooks here, this one names every package it needs, including ones
+# base.yml or bootstrap.sh already installed. A playbook that silently depends on another
+# playbook having run is a trap on the first machine where it has not.
+- name: Niri desktop
+  hosts: localhost
+  connection: local
+  vars:
+    # The apt module needs python3-apt, which is built for the system interpreter.
+    # Pin it here so the module finds the bindings instead of respawning out of .venv.
+    ansible_python_interpreter: /usr/bin/python3
+    niri_version: v26.04
+    xwayland_satellite_version: v0.8.2
+    # No leading v on this one: waybar tags releases as plain 0.15.0, unlike the other two.
+    waybar_version: 0.15.0
+    rust_version: 1.96.0
+    nerd_fonts_version: v3.5.1
+    # Only the families the dotfiles' configs name. Nerd Fonts renames Cascadia Code to
+    # CaskaydiaCove, which is what waybar's style.css and kitty.conf actually ask for.
+    nerd_fonts:
+      - CascadiaCode
+      - FiraCode
+      - JetBrainsMono
+    font_dir: /usr/local/share/fonts
+    # There is no play-level become here, so facts would be right, but lookup() is right
+    # in the same way for every task regardless of who it runs as. See base.yml.
+    user_home: "{{ lookup('env', 'HOME') }}"
+    cargo: "{{ lookup('env', 'HOME') }}/.cargo/bin/cargo"
+    rustup: "{{ lookup('env', 'HOME') }}/.cargo/bin/rustup"
+    xwayland_satellite_stamp: /usr/local/share/xwayland-satellite-version
+    user_name: "{{ lookup('env', 'USER') }}"
+  tasks:
+    - name: Install the desktop packages
+      become: true
+      ansible.builtin.apt:
+        name:
+          - brightnessctl  # XF86MonBrightness binds
+          - ca-certificates  # TLS for the rustup, font and Chrome downloads
+          - curl  # fetches the rustup installer
+          - fontconfig  # fc-cache, below
+          - fuzzel  # Mod+D
+          - gnome-keyring  # the Secret portal niri-portals.conf prefers
+          - gnupg  # dearmors the Chrome signing key, below
+          - kitty  # Mod+Shift+Return
+          - network-manager-applet  # the tray icon, via /etc/xdg/autostart
+          - pavucontrol  # waybar's pulseaudio on-click
+          - pipewire
+          - playerctl  # the XF86Audio play/stop/prev/next binds
+          # deb822_repository parses and writes .sources files through python3-debian and
+          # fails outright without it, the same way the apt module needs python3-apt. Named
+          # here rather than letting the module's install_python_debian fetch it, so the
+          # dependency is visible and goes through --no-install-recommends like the rest.
+          - python3-debian
+          - power-profiles-daemon  # waybar module
+          - sway-notification-center  # waybar's custom/notification (swaync-client)
+          # Nothing in config.kdl names swaybg, so it looks unused until the desktop comes
+          # up with a grey void behind the windows. It is what pywal shells out to when
+          # the startup "wal -ei ~/Wallpapers/..." sets the background on Wayland, and
+          # pywal reports "Set the new wallpaper" whether or not it found a setter.
+          - swaybg
+          - swaylock  # Super+L
+          - ukui-polkit  # the polkit agent config.kdl spawns at startup
+          - unzip  # unpacks the Nerd Font archives, below
+          - waybar
+          - wireplumber  # wpctl, behind the XF86Audio volume binds
+          - wofi  # Mod+Space
+          - xdg-desktop-portal
+          - xdg-desktop-portal-gnome  # niri-portals.conf prefers gnome, then gtk
+          - xdg-desktop-portal-gtk
+          - xwayland  # xwayland-satellite runs it
+        state: present
+        install_recommends: false
+        update_cache: true
+        cache_valid_time: 3600
+
+    # waybar's keyboard-state module reads the Caps and Num LEDs straight off the evdev
+    # nodes, so it needs read access to /dev/input. niri itself does not: logind hands it
+    # the devices through libseat. Without this the bar still starts and only that one
+    # module dies, with "Failed to find keyboard device: EACCES" in the journal.
+    #
+    # Group membership is only picked up at login, so this takes effect on the next one.
+    - name: Add the invoking user to the input group
+      become: true
+      ansible.builtin.user:
+        name: "{{ user_name }}"
+        groups: input
+        append: true
+
+    # unarchive refuses to extract into a directory that does not already exist, so these
+    # are created first, one per family the way getnf lays them out.
+    - name: Ensure the system font directories exist
+      become: true
+      ansible.builtin.file:
+        path: "{{ font_dir }}/{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: "{{ nerd_fonts }}"
+
+    # System-wide rather than the ~/.local/share/fonts that getnf uses, so a greeter and
+    # any other user get the same fonts.
+    #
+    # The creates: guard is what stops a re-run from re-downloading ~95 MB of zips. It
+    # cannot point at the directory, which now always exists, and the archives carry no
+    # version marker of their own, so the next task writes one for it to find. Putting the
+    # version in the stamp's name rather than its content is what makes bumping
+    # nerd_fonts_version pull the new release.
+    - name: Install the Nerd Fonts
+      become: true
+      ansible.builtin.unarchive:
+        src: "https://github.com/ryanoasis/nerd-fonts/releases/download/{{ nerd_fonts_version }}/{{ item }}.zip"
+        dest: "{{ font_dir }}/{{ item }}"
+        remote_src: true
+        creates: "{{ font_dir }}/{{ item }}/.nerd-fonts-{{ nerd_fonts_version }}"
+      loop: "{{ nerd_fonts }}"
+      notify: Rebuild the font cache
+
+    - name: Stamp the installed Nerd Fonts version
+      become: true
+      ansible.builtin.copy:
+        content: "{{ nerd_fonts_version }}\n"
+        dest: "{{ font_dir }}/{{ item }}/.nerd-fonts-{{ nerd_fonts_version }}"
+        mode: "0644"
+      loop: "{{ nerd_fonts }}"
+
+    # Google's own package rewrites /etc/apt/sources.list.d/google-chrome.sources on every
+    # upgrade ("THIS FILE IS AUTOMATICALLY CONFIGURED"), so use the URI, format and keyring
+    # path it uses. Writing the older google-chrome.list instead leaves two sources for the
+    # same suite once Chrome has updated itself once.
+    - name: Fetch the Google signing key
+      become: true
+      ansible.builtin.get_url:
+        url: https://dl.google.com/linux/linux_signing_key.pub
+        dest: /usr/share/keyrings/google-chrome.asc
+        mode: "0644"
+
+    - name: Dearmor the Google signing key
+      become: true
+      ansible.builtin.command:
+        cmd: gpg --dearmor --yes -o /usr/share/keyrings/google-chrome.gpg /usr/share/keyrings/google-chrome.asc
+        creates: /usr/share/keyrings/google-chrome.gpg
+
+    - name: Add the Google Chrome apt repository
+      become: true
+      ansible.builtin.deb822_repository:
+        name: google-chrome
+        types: deb
+        uris: https://dl.google.com/linux/chrome-stable/deb/
+        suites: stable
+        components: main
+        architectures: amd64
+        signed_by: /usr/share/keyrings/google-chrome.gpg
+        state: present
+        enabled: true
+
+    - name: Install Google Chrome
+      become: true
+      ansible.builtin.apt:
+        name: google-chrome-stable
+        state: present
+        install_recommends: false
+        update_cache: true
+
+    - name: Check which niri is installed
+      ansible.builtin.command: niri --version
+      register: niri_installed
+      changed_when: false
+      failed_when: false
+
+    # xwayland-satellite has no version flag at all; --version panics with "Unrecognized
+    # argument". So the install step records the ref it built, and this reads it back.
+    - name: Check whether the xwayland-satellite stamp exists
+      ansible.builtin.stat:
+        path: "{{ xwayland_satellite_stamp }}"
+      register: xwayland_satellite_stat
+
+    - name: Read the installed xwayland-satellite version
+      ansible.builtin.slurp:
+        src: "{{ xwayland_satellite_stamp }}"
+      register: xwayland_satellite_installed
+      when: xwayland_satellite_stat.stat.exists
+
+    # The absolute path matters. trixie's waybar package is still installed, below, and
+    # a bare "waybar" would resolve to whichever of the two comes first on root's PATH.
+    - name: Check which waybar is installed
+      ansible.builtin.command: /usr/local/bin/waybar --version
+      register: waybar_installed
+      changed_when: false
+      failed_when: false
+
+    - name: Decide what needs building
+      ansible.builtin.set_fact:
+        niri_needs_build: >-
+          {{ (niri_version | default('') | regex_replace('^v', ''))
+             not in (niri_installed.stdout | default('')) }}
+        xwayland_satellite_needs_build: >-
+          {{ not xwayland_satellite_stat.stat.exists
+             or (xwayland_satellite_installed.content | default('') | b64decode | trim)
+                != xwayland_satellite_version }}
+        waybar_needs_build: >-
+          {{ (waybar_version | default(''))
+             not in (waybar_installed.stdout | default('')) }}
+
+    # Everything from here to the end of the builds is skipped on a machine that is already
+    # up to date, so a re-run does not pull a pile of -dev packages onto it.
+    - name: Install the build dependencies
+      become: true
+      # Upstream's own lists: DEPS_APT in niri's .github/workflows/ci.yml, and
+      # .github/workflows/ubuntu.dockerfile plus the README in xwayland-satellite.
+      # build-essential covers upstream's gcc and gives cargo a linker; git is what
+      # ansible.builtin.git shells out to. pkg-config, libglib2.0-dev and libcairo2-dev
+      # are Depends of libpango1.0-dev, and libxcb1-dev of libxcb-cursor-dev, so naming
+      # them would be noise. See NOTES.md.
+      ansible.builtin.apt:
+        name:
+          - build-essential
+          - clang
+          - git
+          - libdbus-1-dev
+          - libdisplay-info-dev
+          - libegl1-mesa-dev
+          - libgbm-dev
+          - libinput-dev
+          - libpango1.0-dev
+          - libpipewire-0.3-dev
+          - libseat-dev
+          - libsystemd-dev
+          - libudev-dev
+          - libwayland-dev
+          - libxcb-cursor-dev
+          - libxkbcommon-dev
+        state: present
+        install_recommends: false
+        update_cache: true
+        cache_valid_time: 3600
+      when: niri_needs_build or xwayland_satellite_needs_build
+
+    - name: Install the rust toolchain
+      when: niri_needs_build or xwayland_satellite_needs_build
+      block:
+        - name: Check whether rustup is installed
+          ansible.builtin.stat:
+            path: "{{ rustup }}"
+          register: rustup_stat
+
+        # --no-modify-path for the same reason bootstrap.sh passes UV_NO_MODIFY_PATH=1:
+        # the shell rc files are stowed symlinks into the dotfiles repo, and the installer
+        # would otherwise append to six of them. Every cargo call below uses an absolute
+        # path instead of relying on PATH.
+        - name: Install rustup
+          when: not rustup_stat.stat.exists
+          block:
+            # A directory, not a tempfile. get_url defaults to force: false and skips
+            # entirely when dest already exists, so downloading onto a path tempfile had
+            # just created left an empty 0600 file behind and the run died on it.
+            - name: Create a build directory for rustup
+              ansible.builtin.tempfile:
+                state: directory
+                suffix: rustup
+              register: rustup_build
+
+            - name: Download the rustup installer
+              ansible.builtin.get_url:
+                url: https://sh.rustup.rs
+                dest: "{{ rustup_build.path }}/rustup-init.sh"
+                mode: "0755"
+
+            # Run through sh rather than executing it, so a machine that mounts /tmp
+            # noexec still works.
+            - name: Run the rustup installer
+              ansible.builtin.command:
+                cmd: >-
+                  sh {{ rustup_build.path }}/rustup-init.sh
+                  --no-modify-path --profile minimal
+                  --default-toolchain {{ rust_version }} -y
+                creates: "{{ rustup }}"
+          always:
+            - name: Remove the rustup build directory
+              ansible.builtin.file:
+                path: "{{ rustup_build.path }}"
+                state: absent
+              when: rustup_build.path is defined
+
+        # rustup-init refuses to run over an existing install, so bumping rust_version on
+        # a machine that already has rustup goes through rustup itself, which installs the
+        # toolchain if it is not there yet.
+        - name: Select rust {{ rust_version }}
+          ansible.builtin.command:
+            cmd: "{{ rustup }} default {{ rust_version }}"
+          register: rustup_default
+          changed_when: "'unchanged' not in (rustup_default.stdout + rustup_default.stderr)"
+
+    - name: Build and install xwayland-satellite {{ xwayland_satellite_version }}
+      # become is scoped to the install steps, so the clone and the build tree stay owned
+      # by the invoking user and cargo uses that user's registry cache.
+      when: xwayland_satellite_needs_build
+      block:
+        # /var/tmp, not the /tmp that tempfile defaults to. /tmp is a tmpfs here, so a
+        # cargo target/ tree built there is held in RAM: niri's is 3.8 GB and this one
+        # 921 MB, which OOM-kills a 4 GB machine outright. /var/tmp is the FHS home for
+        # exactly this, temporary data too large or too long-lived for /tmp.
+        - name: Create a build directory for xwayland-satellite
+          ansible.builtin.tempfile:
+            state: directory
+            suffix: xwayland-satellite
+            path: /var/tmp
+          register: xwayland_satellite_build
+
+        - name: Clone xwayland-satellite {{ xwayland_satellite_version }}
+          ansible.builtin.git:
+            repo: https://github.com/Supreeeme/xwayland-satellite
+            dest: "{{ xwayland_satellite_build.path }}"
+            version: "{{ xwayland_satellite_version }}"
+            depth: 1
+            single_branch: true
+
+        - name: Build xwayland-satellite
+          ansible.builtin.command:
+            cmd: "{{ cargo }} build --release"
+            chdir: "{{ xwayland_satellite_build.path }}"
+          changed_when: true
+
+        # niri spawns the binary directly off systemd's user PATH, so it goes to /usr/bin
+        # and the standalone xwayland-satellite.service unit is not needed.
+        - name: Install xwayland-satellite into /usr/bin
+          become: true
+          ansible.builtin.copy:
+            src: "{{ xwayland_satellite_build.path }}/target/release/xwayland-satellite"
+            dest: /usr/bin/xwayland-satellite
+            mode: "0755"
+            remote_src: true
+
+        - name: Record the installed xwayland-satellite version
+          become: true
+          ansible.builtin.copy:
+            content: "{{ xwayland_satellite_version }}\n"
+            dest: "{{ xwayland_satellite_stamp }}"
+            mode: "0644"
+      always:
+        # In always, so a failed build does not leave its tree behind either.
+        - name: Remove the xwayland-satellite build directory
+          ansible.builtin.file:
+            path: "{{ xwayland_satellite_build.path }}"
+            state: absent
+          when: xwayland_satellite_build.path is defined
+
+    - name: Build and install niri {{ niri_version }}
+      when: niri_needs_build
+      block:
+        # /var/tmp for the same reason as the xwayland-satellite build above.
+        - name: Create a build directory for niri
+          ansible.builtin.tempfile:
+            state: directory
+            suffix: niri
+            path: /var/tmp
+          register: niri_build
+        - name: Clone niri {{ niri_version }}
+          ansible.builtin.git:
+            repo: https://github.com/YaLTeR/niri
+            dest: "{{ niri_build.path }}"
+            version: "{{ niri_version }}"
+            depth: 1
+            single_branch: true
+
+        - name: Build niri
+          ansible.builtin.command:
+            cmd: "{{ cargo }} build --release"
+            chdir: "{{ niri_build.path }}"
+          changed_when: true
+
+        # The other three resource destinations come from systemd and xdg-desktop-portal,
+        # but nothing installed here provides this one: it normally arrives with a display
+        # manager, and niri's own .deb ships it. copy does not create parents the way the
+        # install -D in the notebook script did, so make it first.
+        - name: Ensure the wayland-sessions directory exists
+          become: true
+          ansible.builtin.file:
+            path: /usr/share/wayland-sessions
+            state: directory
+            mode: "0755"
+
+        - name: Install the niri resource files
+          become: true
+          ansible.builtin.copy:
+            src: "{{ niri_build.path }}/{{ item.src }}"
+            dest: "{{ item.dest }}"
+            mode: "0644"
+            remote_src: true
+          loop:
+            - src: resources/niri.desktop
+              dest: /usr/share/wayland-sessions/niri.desktop
+            - src: resources/niri-portals.conf
+              dest: /usr/share/xdg-desktop-portal/niri-portals.conf
+            - src: resources/niri.service
+              dest: /usr/lib/systemd/user/niri.service
+            - src: resources/niri-shutdown.target
+              dest: /usr/lib/systemd/user/niri-shutdown.target
+
+        # /usr, not the /usr/local that upstream's manual-installation table suggests.
+        # The layout mirrors niri's own .deb, so the resource files are used verbatim:
+        # niri.service's bare "ExecStart=niri" resolves via /usr/bin on systemd's user PATH.
+        #
+        # Last, deliberately. "niri --version" is what the guard at the top of this play
+        # reads, so installing the binary before the resource files would let a failure
+        # in between satisfy the guard and make the next run skip the whole block.
+        - name: Install the niri binaries into /usr/bin
+          become: true
+          ansible.builtin.copy:
+            src: "{{ niri_build.path }}/{{ item.src }}"
+            dest: "{{ item.dest }}"
+            mode: "0755"
+            remote_src: true
+          loop:
+            - src: target/release/niri
+              dest: /usr/bin/niri
+            - src: resources/niri-session
+              dest: /usr/bin/niri-session
+      always:
+        - name: Remove the niri build directory
+          ansible.builtin.file:
+            path: "{{ niri_build.path }}"
+            state: absent
+          when: niri_build.path is defined
+
+    # trixie ships waybar 0.12.0 and stops there; 0.15.0 is in sid but not in
+    # trixie-backports. Three releases of fixes to the modules the dotfiles' bar actually
+    # uses sit in between, the sharpest being a leak in the continuous-script path that
+    # custom/notification runs swaync-client through. See NOTES.md.
+    #
+    # The apt package above stays installed on purpose, so this does not need to reproduce
+    # waybar's whole runtime library closure, and a machine whose build is skipped or
+    # broken still has a bar. This build goes to /usr/local and shadows it in both places
+    # that matter: /usr/local/bin comes first on PATH, and /usr/local/lib/systemd/user
+    # comes before /usr/lib/systemd/user in systemd's user unit search path.
+    - name: Install the waybar build dependencies
+      become: true
+      # Debian's own Build-Depends for waybar 0.15.0-1, minus what this build does not
+      # ask for. Every optional feature in meson_options.txt is "auto", so the packages
+      # named here are exactly what decides which modules get compiled in, and the ones
+      # left out (mpd, jack, sndio, gps, cava, pipewire, mpris, upower, wireplumber) are
+      # for modules the config does not use. libinput-dev is doing double duty: keyboard-
+      # state needs libevdev and backlight needs libudev, and both are Depends of it.
+      ansible.builtin.apt:
+        name:
+          - build-essential
+          - cmake  # meson falls back to it for dependencies with no pkg-config file
+          - git
+          - libdbusmenu-gtk3-dev  # tray
+          - libfmt-dev  # meson wants >= 8.1.1, trixie has 10.1.1
+          - libgtk-layer-shell-dev
+          - libgtkmm-3.0-dev
+          # Only used when the compiler has no C++20 chrono time zones. g++ 14 does, but
+          # without this meson would answer a failed probe by fetching a subproject.
+          - libhowardhinnant-date-dev
+          - libinput-dev  # keyboard-state, plus backlight through libudev-dev
+          - libjsoncpp-dev
+          - libnl-3-dev  # network
+          - libnl-genl-3-dev
+          - libpulse-dev  # pulseaudio
+          - libsigc++-2.0-dev
+          - libspdlog-dev  # meson wants >= 1.15.2, trixie has exactly that
+          - libwayland-dev
+          - libxkbregistry-dev  # not optional in meson.build, unlike the rest
+          - meson
+          - ninja-build
+          - pkgconf
+          - scdoc  # generates the man pages
+        state: present
+        install_recommends: false
+        update_cache: true
+        cache_valid_time: 3600
+      when: waybar_needs_build
+
+    - name: Build and install waybar {{ waybar_version }}
+      when: waybar_needs_build
+      block:
+        - name: Create a build directory for waybar
+          ansible.builtin.tempfile:
+            state: directory
+            suffix: waybar
+            path: /var/tmp
+          register: waybar_build
+
+        - name: Clone waybar {{ waybar_version }}
+          ansible.builtin.git:
+            repo: https://github.com/Alexays/Waybar
+            dest: "{{ waybar_build.path }}"
+            version: "{{ waybar_version }}"
+            depth: 1
+            single_branch: true
+
+        # Two options are not left at their defaults. rfkill is a feature option whose
+        # guard in meson.build is .enabled() rather than .allowed(), so "auto" means off
+        # and the network module loses its rfkill state; Debian's rules passes the same
+        # thing. systemd is disabled because it does not install the unit under the
+        # prefix: it reads systemduserunitdir out of systemd.pc, which is the absolute
+        # /usr/lib/systemd/user, so a plain build would overwrite the file dpkg owns. The
+        # next task writes the unit instead. Everything else is auto, and resolves from
+        # the packages above.
+        - name: Configure the waybar build
+          ansible.builtin.command:
+            cmd: >-
+              meson setup build
+              --prefix=/usr/local
+              --buildtype=release
+              -Drfkill=enabled
+              -Dsystemd=disabled
+              -Dniri=true
+            chdir: "{{ waybar_build.path }}"
+          changed_when: true
+
+        - name: Build waybar
+          ansible.builtin.command:
+            cmd: meson compile -C build
+            chdir: "{{ waybar_build.path }}"
+          changed_when: true
+
+        # Installs the binary, the man pages and a default config under /usr/local, none
+        # of which collide with a path dpkg owns.
+        - name: Install waybar into /usr/local
+          become: true
+          ansible.builtin.command:
+            cmd: meson install -C build
+            chdir: "{{ waybar_build.path }}"
+          changed_when: true
+
+        # Same trap as /usr/share/wayland-sessions above: copy does not create parents,
+        # and nothing on a trixie box has had a reason to make this one yet.
+        - name: Ensure the /usr/local systemd user unit directory exists
+          become: true
+          ansible.builtin.file:
+            path: /usr/local/lib/systemd/user
+            state: directory
+            mode: "0755"
+
+        # resources/waybar.service.in verbatim, with @prefix@ filled in, which is all
+        # meson would have done. Written here rather than in /usr/lib/systemd/user so it
+        # shadows the packaged unit instead of replacing it; the enablement is by unit
+        # name, so waybar.service stays enabled by the package's preset either way.
+        - name: Install the waybar systemd user unit
+          become: true
+          ansible.builtin.copy:
+            dest: /usr/local/lib/systemd/user/waybar.service
+            mode: "0644"
+            content: |
+              [Unit]
+              Description=Highly customizable Wayland bar for Sway and Wlroots based compositors
+              Documentation=https://github.com/Alexays/Waybar/wiki/
+              PartOf=graphical-session.target
+              After=graphical-session.target
+              Requisite=graphical-session.target
+
+              [Service]
+              ExecStart=/usr/local/bin/waybar
+              ExecReload=kill -SIGUSR2 $MAINPID
+              Restart=on-failure
+
+              [Install]
+              WantedBy=graphical-session.target
+      always:
+        - name: Remove the waybar build directory
+          ansible.builtin.file:
+            path: "{{ waybar_build.path }}"
+            state: absent
+          when: waybar_build.path is defined
+
+    # No "systemctl --user daemon-reload" here, and no "systemctl --user enable
+    # waybar.service" either, though niri-build.sh did the former. Both are wrong for this
+    # playbook. See NOTES.md.
+
+  handlers:
+    - name: Rebuild the font cache
+      become: true
+      ansible.builtin.command:
+        cmd: fc-cache -f {{ font_dir }}
+      changed_when: true
