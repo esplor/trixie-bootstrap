@@ -4,8 +4,8 @@
 
 
 Everything here is exercised on a real cold install in a virt-manager VM
-(`debian-bootstrap-claude`, `qemu:///system`), not just linted. A minimal trixie install
-has no git, curl or wget, so the script is copied in over ssh rather than cloned.
+(`debian-bootstrap-claude`, `qemu:///system`), not just linted. The script is copied in
+over ssh, so the VM needs nothing on it beyond a running sshd.
 
 The VM takes its address from libvirt's DHCP, so it needs a name before any of this is
 typeable. Ask for the address, then put it in `~/.ssh/config` as

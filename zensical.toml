@@ -11,7 +11,6 @@ site_description = "Turn a fresh Debian 13 (trixie) install into a working syste
 # alphabetically, which would put base.yml ahead of the bootstrap that has to run first.
 nav = [
   { "Home" = "index.md" },
-  { "Getting the repo onto a minimal install" = "getting-started.md" },
   { "bootstrap.sh" = "bootstrap.md" },
   { "The uv project" = "uv-project.md" },
   { "Playbooks" = [
