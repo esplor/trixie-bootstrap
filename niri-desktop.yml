@@ -164,6 +164,13 @@
     # upgrade ("THIS FILE IS AUTOMATICALLY CONFIGURED"), so use the URI, format and keyring
     # path it uses. Writing the older google-chrome.list instead leaves two sources for the
     # same suite once Chrome has updated itself once.
+    - name: Check whether Google Chrome is installed
+      ansible.builtin.command:
+        cmd: dpkg-query -W -f=${Status} google-chrome-stable
+      register: chrome_installed
+      changed_when: false
+      failed_when: false
+
     - name: Fetch the Google signing key
       become: true
       ansible.builtin.get_url:
@@ -177,8 +184,16 @@
         cmd: gpg --dearmor --yes -o /usr/share/keyrings/google-chrome.gpg /usr/share/keyrings/google-chrome.asc
         creates: /usr/share/keyrings/google-chrome.gpg
 
+    # Only needed until Chrome is in, and actively harmful after. install_deb822_sources
+    # in the postinst recreates this file whenever it already exists, and it always does
+    # here, because apt cannot install the package without the repository first. Both
+    # files describe the same repository and differ only in field order, the
+    # X-Repolib-Name value and a header, so re-adding it every run reports a change
+    # nobody made, once per Chrome upgrade forever. Google's header says the file is not
+    # to be edited by hand, so past the first install it belongs to Chrome.
     - name: Add the Google Chrome apt repository
       become: true
+      when: "'install ok installed' not in chrome_installed.stdout"
       ansible.builtin.deb822_repository:
         name: google-chrome
         types: deb

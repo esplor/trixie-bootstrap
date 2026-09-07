@@ -170,10 +170,40 @@ CONFIGURED". So the playbook writes the same path, in the same deb822 format, wi
 uses. Writing the older `google-chrome.list` instead leaves two sources for the same suite
 once Chrome has updated itself once.
 
-The consequence is one unavoidable `changed` on the *second* run: the first run writes the
-file, the postinst rewrites it during install, and the second run puts it back. From the
-third run on it is stable, and the postinst sets `repo_add_once="false"` in
-`/etc/default/google-chrome` so it does not keep re-adding.
+Matching Google's format is not enough to stop the two from fighting over the file, and it
+is not the once-only skirmish it looks like. `repo_add_once="false"`, which the postinst
+writes into `/etc/default/google-chrome`, looks like the thing that should end it, but
+`install_deb822_sources` never reaches that gate:
+
+```sh
+if [ -f "$SOURCES_FILE" ]; then
+    # The new .sources file already exists. Recreate it in case it got disabled
+    # during a dist upgrade.
+    SHOULD_INSTALL_SOURCES=1
+fi
+```
+
+The file always exists when the postinst runs, because apt cannot install the package
+until the repository is there, so the postinst always recreates it and the next playbook
+run puts it back. That is one spurious `changed` after every Chrome upgrade, forever, not
+once. The two versions describe the same repository and differ only in field order, the
+`X-Repolib-Name` value (`google-chrome` against `Google Chrome`), an `Enabled: yes` line
+and a three-line header.
+
+So the task is gated on Chrome not being installed. It exists only to bootstrap the first
+`apt install`; after that the file belongs to Chrome, which its own header states outright.
+`dpkg-query -W -f=${Status}` prints `install ok installed` once Chrome is in, and exits 1
+with empty stdout when it is not, so `failed_when: false` and a `not in` test cover both.
+A removed-but-not-purged Chrome reports `deinstall ok config-files`, which re-adds the
+repository, and that is what a reinstall needs.
+
+The trade: delete that file on a machine that already has Chrome and nothing puts it back,
+because the playbook now skips and Chrome's own header says "This file will not be
+recreated if removed".
+
+`/etc/cron.daily/google-chrome` carries the same repo-writing logic, gated on
+`repo_add_once` and so dormant, but `/etc/default/google-chrome` also holds
+`repo_reenable_on_distupgrade="true"`, which re-arms it across a release upgrade.
 
 ## No systemctl --user here
 
