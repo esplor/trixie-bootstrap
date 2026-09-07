@@ -1,6 +1,5 @@
 # base.yml
 
-
 Installs the base package set and makes sure `~/.config` exists.
 
 That directory matters more than it looks: if it is missing when stow runs, stow folds the

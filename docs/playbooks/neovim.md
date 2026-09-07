@@ -1,6 +1,5 @@
 # neovim.yml
 
-
 trixie ships neovim 0.10, too old for the lazy.nvim config in the dotfiles, so this builds
 the pinned stable tag the way `~/.debian-scripts/nvim-build.sh` did and installs it to
 `/usr/local`.

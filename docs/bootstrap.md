@@ -1,6 +1,5 @@
 # bootstrap.sh
 
-
 Three steps, each guarded, so a re-run on a configured machine is a no-op that just reports
 versions.
 

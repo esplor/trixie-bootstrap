@@ -1,6 +1,5 @@
 # niri-desktop.yml
 
-
 niri is not packaged in trixie at all (`apt-cache policy niri` comes back empty), and
 neither is xwayland-satellite, so both are built from source the way `~/code/desktop`'s
 `niri-build.sh` and `xwayland-satellite-build.sh` did it by hand. Configuration stays out

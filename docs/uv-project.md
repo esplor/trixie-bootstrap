@@ -1,6 +1,5 @@
 # The uv project
 
-
 `ansible-core` is a regular dependency, `ansible-lint` a dev one. Both `uv sync` and
 `uv run` install the default groups, so a plain `uv run` would quietly reinstall the lint
 tooling that a `--no-dev` sync just left out. Rather than repeat `--no-dev` on every
