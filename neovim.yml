@@ -11,6 +11,7 @@
   vars:
     ansible_python_interpreter: /usr/bin/python3
     nvim_version: v0.12.5
+    user_home: "{{ lookup('env', 'HOME') }}"
   tasks:
     # Unconditional, unlike the build deps below: these are what the dotfiles' config
     # needs at runtime, so a machine that already has the right nvim still wants them.
@@ -48,6 +49,16 @@
         install_recommends: false
         update_cache: true
         cache_valid_time: 3600
+
+    # The dotfiles' config expects ruff on PATH: conform formats with ruff_format
+    # when it finds it (formatter.lua), and lsp.lua lists ruff among the servers. A
+    # uv tool rather than leaving it to mason's PyPI venv, so the editor and the
+    # shell share one ruff. Absolute path to uv for the same reason as everywhere
+    # else here, and no become, so it installs into the invoking user's home.
+    - name: Install ruff as a uv tool
+      ansible.builtin.command:
+        cmd: "{{ user_home }}/.local/bin/uv tool install ruff"
+        creates: "{{ user_home }}/.local/bin/ruff"
 
     - name: Check which neovim is installed
       ansible.builtin.command: nvim --version

@@ -114,3 +114,12 @@ prebuilt-binary path, so it needs no node despite the plugin's reputation.
 Two checkhealth complaints that are artifacts of testing over ssh, not missing packages:
 `No clipboard tool found` (nvim only picks up `wl-copy` when `$WAYLAND_DISPLAY` is set) and
 `command failed: { "infocmp", "-L" }` (no `TERM` in a headless run).
+
+## ruff comes from uv, not from mason
+
+`formatter.lua` picks `ruff_format` only when conform finds it on PATH
+(`get_formatter_info("ruff_format").available`), and `lsp.lua` names `ruff` among the
+servers, so on a machine without it Python quietly gets formatted by something else or not
+at all. mason would install its own copy into a PyPI venv that serves nvim and nothing
+else. `uv tool install ruff` puts one in `~/.local/bin` for the editor and the shell both,
+and trixie has no ruff package to use instead.
