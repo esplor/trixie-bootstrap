@@ -15,5 +15,8 @@ Two details in the play:
   With play-level `become: true`, facts are gathered as root, so `ansible_env.HOME` and
   `ansible_user_dir` report `/root` for the whole play, even inside a `become: false` task.
 
+`screen` is in the set as a server requirement rather than a local preference. `tmux` is
+not here despite being its obvious neighbour, see `niri-desktop.yml` for why.
+
 Add `-K` when sudo wants a password. The "no inventory was parsed" warning is expected: the
 only host is the implicit localhost.

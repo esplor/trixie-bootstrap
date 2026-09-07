@@ -21,6 +21,7 @@
           - psmisc
           - ripgrep
           - rsync
+          - screen  # Server requirement
           - stow
           - tree
         state: present
