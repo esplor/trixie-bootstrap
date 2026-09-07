@@ -10,4 +10,4 @@ uv run ansible-playbook neovim.yml       # neovim from source
 uv run ansible-playbook niri-desktop.yml # niri desktop from source
 ```
 
-Why any of it looks the way it does: [NOTES.md](NOTES.md).
+Why any of it looks the way it does: [docs/](docs/index.md).

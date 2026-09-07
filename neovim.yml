@@ -35,7 +35,7 @@
           # compiles Lua 5.1 with -DLUA_USE_READLINE and then configures luarocks. Without
           # these two the compile dies on readline/readline.h, luarocks configure dies on
           # "Could not find 'unzip'", and every nvim start ends in "Too many rounds of
-          # missing plugins". See NOTES.md.
+          # missing plugins". See docs/playbooks/neovim.md.
           - libreadline-dev
           - unzip
           - luarocks  # mason's luarocks manager; distinct from lazy.nvim's hererocks
@@ -65,7 +65,7 @@
           ansible.builtin.apt:
             # Exactly upstream's list for this tag (BUILD.md, Ubuntu/Debian). nvim-build.sh
             # also installed unzip, luarocks and python3-venv; those three are mason
-            # runtime dependencies, not build ones. See NOTES.md.
+            # runtime dependencies, not build ones. See docs/playbooks/neovim.md.
             name:
               - build-essential
               - cmake

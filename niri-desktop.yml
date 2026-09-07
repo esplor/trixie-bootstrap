@@ -219,7 +219,7 @@
       # build-essential covers upstream's gcc and gives cargo a linker; git is what
       # ansible.builtin.git shells out to. pkg-config, libglib2.0-dev and libcairo2-dev
       # are Depends of libpango1.0-dev, and libxcb1-dev of libxcb-cursor-dev, so naming
-      # them would be noise. See NOTES.md.
+      # them would be noise. See docs/playbooks/niri-desktop.md.
       ansible.builtin.apt:
         name:
           - build-essential
@@ -434,7 +434,7 @@
     # trixie ships waybar 0.12.0 and stops there; 0.15.0 is in sid but not in
     # trixie-backports. Three releases of fixes to the modules the dotfiles' bar actually
     # uses sit in between, the sharpest being a leak in the continuous-script path that
-    # custom/notification runs swaync-client through. See NOTES.md.
+    # custom/notification runs swaync-client through. See docs/playbooks/niri-desktop.md.
     #
     # The apt package above stays installed on purpose, so this does not need to reproduce
     # waybar's whole runtime library closure, and a machine whose build is skipped or
@@ -575,7 +575,7 @@
 
     # No "systemctl --user daemon-reload" here, and no "systemctl --user enable
     # waybar.service" either, though niri-build.sh did the former. Both are wrong for this
-    # playbook. See NOTES.md.
+    # playbook. See docs/playbooks/niri-desktop.md.
 
   handlers:
     - name: Rebuild the font cache

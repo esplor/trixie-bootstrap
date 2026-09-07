@@ -1,18 +1,19 @@
 # claude-trixie-bootstrap
 
 Turn a fresh Debian 13 (trixie) install into a working system, built one small step at a
-time. Right now that is `bootstrap.sh`, which makes `uv` available, plus two playbooks
-(`base.yml`, `neovim.yml`) run through it.
+time. Right now that is `bootstrap.sh`, which makes `uv` available, plus three playbooks
+(`base.yml`, `neovim.yml`, `niri-desktop.yml`) run through it.
 
-Explanations of why things are the way they are go in `NOTES.md`, and get written as they
-are discovered. `README.md` stays minimal: the commands, nothing else.
+Explanations of why things are the way they are go in `docs/`, one page per playbook under
+`docs/playbooks/`, written as they are discovered. `README.md` stays minimal: the commands,
+nothing else.
 
 ## Rules
 
-- `README.md` is the commands only. Anything explanatory belongs in `NOTES.md`.
+- `README.md` is the commands only. Anything explanatory belongs in `docs/`.
 - Start small. One script, one job. No new abstraction until there is a second use case.
-- Playbooks (`base.yml`, `neovim.yml`) run against localhost. No roles, no inventory,
-  no `ansible.cfg`, no Makefile until explicitly asked for.
+- Playbooks run against localhost. No roles, no inventory, no `ansible.cfg`, no Makefile
+  until explicitly asked for.
 - POSIX `sh` house style: `#!/usr/bin/env sh`, `set -e` plus the pipefail probe,
   shellcheck-clean.
 - Self-contained. Nothing here may source `~/.dotfiles`; it is not cloned yet at

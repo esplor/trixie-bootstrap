@@ -1,199 +1,5 @@
-# Notes
+# niri-desktop.yml
 
-Why the commands in the README look the way they do. Written down as it is discovered, so
-none of it has to be worked out twice.
-
-## Getting the repo onto a minimal install
-
-A minimal trixie install has no git and no CA certificates, so the clone fails before it
-starts. `ca-certificates` is a Recommends of both `git` and `libcurl3t64-gnutls` (git's
-HTTPS transport), never a Depends, so with `--no-install-recommends` it has to be named or
-the clone dies with `server certificate verification failed. CAfile: none`:
-
-```sh
-sudo apt update && sudo apt install --no-install-recommends ca-certificates git openssh-client
-```
-
-Or skip the clone and copy the one script over from another machine: `scp bootstrap.sh user@host:`.
-
-## bootstrap.sh
-
-Three steps, each guarded, so a re-run on a configured machine is a no-op that just reports
-versions.
-
-- **curl** plus `ca-certificates`, which is only a Recommends of `libcurl4t64` and so is
-  missing on a minimal install. Without it curl cannot verify TLS.
-- **python3-apt**, which drags in `python3` as a hard Depends. A minimal install has
-  neither, the uv project refuses to download an interpreter, and Ansible's apt module
-  needs the bindings. The guard probes `/usr/bin/python3` by name, since that is the
-  interpreter Ansible looks in and the only one the bindings are built for, whatever
-  `python3` happens to be on `PATH`.
-- **uv**, via the Astral installer with `UV_NO_MODIFY_PATH=1`. Without that flag the
-  installer appends a line to `.profile`, `.bashrc`, `.bash_profile`, `.bash_login`,
-  `.zshrc`, `.zshenv` and a fish conf.d file. Those are stowed symlinks into the dotfiles
-  repo here, so the installer would be editing that repo. It also means no
-  `~/.local/bin/env` file is written, since the installer only creates one as part of the
-  same rc-file work.
-
-uv lands in `~/.local/bin`. A script cannot put that on the `PATH` of the shell that
-started it, so the run ends with a tip: log out and back in, or `. ~/.profile`. Debian's
-`~/.profile` adds `~/.local/bin` only when the directory already exists at login, which it
-did not before the first run.
-
-The apt calls go through `sudo env DEBIAN_FRONTEND=noninteractive`. Without it a non-tty
-run makes debconf try dialog, readline and teletype, fail all three, and fall back to
-noninteractive anyway, four warning lines per install. sudo strips the variable from the
-environment, hence `env`.
-
-## The uv project
-
-`ansible-core` is a regular dependency, `ansible-lint` a dev one. Both `uv sync` and
-`uv run` install the default groups, so a plain `uv run` would quietly reinstall the lint
-tooling that a `--no-dev` sync just left out. Rather than repeat `--no-dev` on every
-command, `default-groups = []` makes dev opt-in: plain `uv sync` and `uv run` stay lean,
-and linting is `uv run --group dev ansible-lint base.yml` when you want it.
-
-`python-preference = "only-system"` pins uv to trixie's own Python 3.13, so no machine ends
-up with a second interpreter it did not ask for. There is no `.python-version`, since
-pinning one invites uv to fetch a matching build.
-
-## base.yml
-
-Installs the base package set and makes sure `~/.config` exists.
-
-That directory matters more than it looks: if it is missing when stow runs, stow folds the
-tree and makes `~/.config` a symlink into the dotfiles package, so everything later written
-there lands inside the dotfiles repo. With a real directory in place, stow links only the
-entries below it.
-
-Two details in the play:
-
-- `ansible_python_interpreter` is pinned to `/usr/bin/python3` so the apt module finds
-  `python3-apt` directly instead of respawning out of `.venv`.
-- The `~/.config` task drops `become`, and uses `lookup('env', 'HOME')` rather than a fact.
-  With play-level `become: true`, facts are gathered as root, so `ansible_env.HOME` and
-  `ansible_user_dir` report `/root` for the whole play, even inside a `become: false` task.
-
-Add `-K` when sudo wants a password. The "no inventory was parsed" warning is expected: the
-only host is the implicit localhost.
-
-## neovim.yml
-
-trixie ships neovim 0.10, too old for the lazy.nvim config in the dotfiles, so this builds
-the pinned stable tag the way `~/.debian-scripts/nvim-build.sh` did and installs it to
-`/usr/local`.
-
-The first run installs the build dependencies, shallow-clones the tag and compiles, about
-two minutes on a 2-core VM, then deletes the build tree from an `always` block so a failed
-build cleans up too. Later runs compare `nvim --version` against `nvim_version` and skip
-the whole block, so upgrading means bumping that variable.
-
-`become` is scoped to the apt task and `make install` only, leaving the clone and the build
-owned by the invoking user.
-
-The build dependencies are exactly upstream's list for the tag (`BUILD.md`, Ubuntu/Debian):
-build-essential, cmake, curl, gettext, git, ninja-build. `nvim-build.sh` also installed
-unzip, luarocks and python3-venv, and a build from a fresh install with all three absent
-succeeds, so none of them is a build dependency. They are mason **runtime** dependencies:
-
-- `unzip`, to extract zip release assets (`mason-core/installer/managers/std.lua` spawns
-  `unzip -d .`, and `mason/health.lua` checks for it)
-- `luarocks`, for luarocks-provided packages (`mason/health.lua`, and
-  `installer/compiler/link.lua` resolves bin paths through the luarocks manager)
-- `python3-venv`, because mason's PyPI installer runs `-m venv --system-site-packages`
-  (`mason-core/installer/managers/pypi.lua`) before pipping the tool in
-
-They install from the same playbook all the same, in a second apt task that runs
-unconditionally rather than inside the version-gated build block. The next section is what
-that task installs and how the list was arrived at.
-
-## What the nvim config needs at runtime
-
-Established by copying `~/.config/nvim` into a VM that had only `bootstrap.sh` and
-`neovim.yml` applied, running `nvim --headless "+Lazy! sync" +qa` and `:checkhealth`, then
-adding packages until the errors stopped. Not by reading plugin sources, which got the
-luarocks story wrong (see below).
-
-A fresh install fails hard, not gracefully. Every start ended with:
-
-```
-Error in /home/eslo/.config/nvim/init.lua:
-Too many rounds of missing plugins
-```
-
-The chain: `lua/plugins/neo-tree.lua` pulls in `3rd/image.nvim`, image.nvim ships a
-rockspec, so lazy.nvim tries to install it as a luarock. Finding no luarocks, lazy
-bootstraps its own *hererocks*, which compiles Lua 5.1 from source with
-`-DLUA_USE_READLINE` and then configures LuaRocks against it. On a minimal trixie both
-steps fail, one after the other:
-
-- `luaconf.h:275:10: fatal error: readline/readline.h` — needs **`libreadline-dev`**
-- `Configuring LuaRocks 3.13.0... Could not find 'unzip'` — needs **`unzip`**
-
-image.nvim never installs, lazy retries the round on every start, and gives up with the
-error above. With both packages present hererocks builds, the `magick` and `image.nvim`
-rocks install, and startup is clean. `magick` is an FFI binding, so it needs no ImageMagick
-headers at build time.
-
-This corrects the earlier reading of image.nvim's source. Its default `magick_cli`
-processor really does only want the `magick` binary, but that is a runtime choice and says
-nothing about install time: lazy.nvim goes down the luarocks path because the *rockspec*
-exists, whatever processor the config later selects.
-
-What `neovim.yml` installs, and why:
-
-| Package | Wanted by |
-| --- | --- |
-| `libreadline-dev`, `unzip` | lazy.nvim's hererocks, as above |
-| `fd-find` | `Snacks.picker.explorer()`, telescope; Debian's binary is `fdfind`, which both look for |
-| `imagemagick` | image.nvim, to convert anything that is not already a PNG |
-| `libglib2.0-bin` | `gio`, the only trash command snacks.explorer finds on trixie |
-| `luarocks` | mason's luarocks manager, distinct from lazy.nvim's hererocks |
-| `python3-venv` | mason's PyPI installer runs `-m venv --system-site-packages` first |
-| `wget`, `unzip` | mason core utils |
-| `wl-clipboard` | the `"+` and `"*` registers |
-| `xdg-utils` | `xdg-open`, behind `vim.ui.open` |
-
-The task is deliberately outside the version-gated build block. These are needed whether or
-not this run compiles anything, so a machine that already has the right nvim still gets
-them.
-
-`ripgrep`, `build-essential`, `ca-certificates` and `curl` are in that list too, even
-though `base.yml` and `bootstrap.sh` already install them, for the reason spelled out under
-niri-desktop.yml below: a playbook that leans on another playbook having run breaks on the
-first machine where it has not.
-
-`git` is the one where that stopped being theoretical. It used to sit only in the
-version-gated build block, so a machine that already had the right neovim skipped the whole
-block and never got it, while lazy.nvim shells out to git to clone and update every plugin
-on every start. The test VM hid it perfectly: by the time the playbook ran, git was already
-there from cloning this repo.
-
-Left out on purpose:
-
-- **`nodejs`, `npm`** — mason installs most language servers through npm, so they are
-  genuinely missing, but node belongs to a future development playbook alongside nvm,
-  devbox and the Claude CLI. Installing trixie's node 20 from apt now would just be
-  shadowed by nvm later.
-- **`tree-sitter-cli`** — nvim-treesitter wants v0.26.1 and trixie ships 0.22.6, so apt
-  cannot satisfy it. It belongs in the plugin spec as a source build.
-- **`lazygit`** — not packaged in Debian at all.
-- **`ghostscript`, `tectonic`, `mmdc`** — image.nvim's PDF, LaTeX and Mermaid renderers.
-  Optional extras, not part of running the config.
-
-`stylua`, `vale`, `hadolint` and `prettier` are not packaged in trixie either; mason pulls
-them from GitHub releases or npm, which is the other reason it wants unzip, curl and npm.
-The Python tools in this config are black and ruff, so `uv tool install ruff` would avoid
-mason's venv path for those, uv being on every machine here anyway.
-
-`markdown-preview.nvim` is configured with `build = ":call mkdp#util#install()"`, the
-prebuilt-binary path, so it needs no node despite the plugin's reputation.
-
-Two checkhealth complaints that are artifacts of testing over ssh, not missing packages:
-`No clipboard tool found` (nvim only picks up `wl-copy` when `$WAYLAND_DISPLAY` is set) and
-`command failed: { "infocmp", "-L" }` (no `TERM` in a headless run).
-
-## niri-desktop.yml
 
 niri is not packaged in trixie at all (`apt-cache policy niri` comes back empty), and
 neither is xwayland-satellite, so both are built from source the way `~/code/desktop`'s
@@ -204,7 +10,7 @@ playbook installs software and stops there.
 Everything below was established by running it cold in the VM, not by reading the notebook
 scripts, which turned out to be wrong in both directions.
 
-### Every dependency is named here, even the ones another playbook installs
+## Every dependency is named here, even the ones another playbook installs
 
 `build-essential`, `ca-certificates`, `curl` and `git` are already installed by `base.yml`
 and `bootstrap.sh`, and are listed here anyway. A playbook that quietly relies on another
@@ -216,7 +22,7 @@ That is a different question from relying on a package's `Depends`. `pkg-config`
 `libxcb1-dev` of `libxcb-cursor-dev`, so naming them is noise. Same reasoning as
 `python3-apt` pulling in `python3`: a Depends is guaranteed, a Recommends is not.
 
-### The build dependencies in the notebook were wrong
+## The build dependencies in the notebook were wrong
 
 Upstream publishes the real lists, in `DEPS_APT` in niri's `.github/workflows/ci.yml` and
 in `.github/workflows/ubuntu.dockerfile` plus the README for xwayland-satellite.
@@ -227,7 +33,7 @@ and none of the other `-dev` packages depends on dbus or systemd. The script wor
 because those three were already on the machine for other reasons. It also named
 `pkg-config`, `libglib2.0-dev`, `libcairo2-dev` and `libxcb1-dev`, all redundant per above.
 
-### Two prerequisites nothing else here installs
+## Two prerequisites nothing else here installs
 
 - `python3-debian`, because `deb822_repository` parses and writes `.sources` files through
   it and fails outright without it, exactly the way the apt module needs `python3-apt`. The
@@ -236,7 +42,7 @@ because those three were already on the machine for other reasons. It also named
 - `fontconfig`, for `fc-cache`. Absent on a machine that has only run `bootstrap.sh`,
   `base.yml` and `neovim.yml`.
 
-### Build in /var/tmp, never /tmp
+## Build in /var/tmp, never /tmp
 
 `ansible.builtin.tempfile` defaults to `/tmp`, and `/tmp` is a tmpfs on a stock trixie. A
 cargo `target/` tree built there is held in RAM: niri's is 3.8 GB and xwayland-satellite's
@@ -251,7 +57,7 @@ away with the default only because its build tree is small.
 Budget roughly 5 GB of disk and, with eight parallel `rustc` and no swap, more than 4 GB of
 RAM. The VM does this comfortably on 8 cores and 8 GB.
 
-### rustup, pinned, rather than trixie's cargo
+## rustup, pinned, rather than trixie's cargo
 
 trixie ships cargo and rustc 1.85.0, and niri 26.04 declares `rust-version = "1.85"` with a
 CI job at `dtolnay/rust-toolchain@1.85.0`, so apt's toolchain would very probably build it.
@@ -268,7 +74,7 @@ instead of relying on PATH.
 that already has it goes through `rustup default` instead, which installs the toolchain if
 it is missing.
 
-### Ansible module traps, all of them found by running it
+## Ansible module traps, all of them found by running it
 
 - **`get_url` and `tempfile` do not compose.** `get_url` defaults to `force: false` and
   skips entirely when `dest` already exists. Downloading onto a path that `tempfile` just
@@ -288,7 +94,7 @@ it is missing.
   did. `/usr/share/wayland-sessions` is the one destination nothing else provides: the other
   three come from systemd and xdg-desktop-portal, and niri's own .deb ships this one.
 
-### Install the binary last, so the guard cannot lie
+## Install the binary last, so the guard cannot lie
 
 `niri --version` is the idempotency guard, so the binaries are installed *after* the
 resource files. The other order looked fine until a failure in between left a machine where
@@ -300,7 +106,7 @@ xwayland-satellite has no version flag at all, incidentally: `--version` panics 
 "Unrecognized argument". Hence the stamp file at
 `/usr/local/share/xwayland-satellite-version`.
 
-### /usr, not /usr/local, for the binaries
+## /usr, not /usr/local, for the binaries
 
 Upstream's manual-installation table says `/usr/local`, and the notebook deliberately
 ignores it. The layout mirrors niri's own .deb and .rpm packaging, so the resource files
@@ -309,7 +115,7 @@ systemd's user PATH. The fonts are the exception and go to `/usr/local/share/fon
 they are not part of any package's layout, only system-wide instead of the
 `~/.local/share/fonts` that getnf uses so a greeter and other users get them too.
 
-### Google Chrome configures its own apt source
+## Google Chrome configures its own apt source
 
 The `google-chrome-stable` postinst rewrites
 `/etc/apt/sources.list.d/google-chrome.sources` itself, stamped "THIS FILE IS AUTOMATICALLY
@@ -323,7 +129,7 @@ file, the postinst rewrites it during install, and the second run puts it back. 
 third run on it is stable, and the postinst sets `repo_add_once="false"` in
 `/etc/default/google-chrome` so it does not keep re-adding.
 
-### No systemctl --user here
+## No systemctl --user here
 
 `niri-build.sh` ends with `systemctl --user daemon-reload`. That is right for a script run
 from inside a desktop session and wrong for this playbook, in two ways.
@@ -347,7 +153,7 @@ That is also why niri's **default** config gives you two bars. It carries a
 in the dotfiles deletes that line deliberately, and says so in a comment. Nothing to fix
 here; it only shows up on a machine with no dotfiles stowed, such as the test VM.
 
-### swaybg and the input group, found by running the real configs
+## swaybg and the input group, found by running the real configs
 
 Two packages that no dependency chain and no reading of `config.kdl` would have turned up.
 Both came out of running the dotfiles' niri, waybar and kitty configs on the test VM.
@@ -367,7 +173,7 @@ libseat. Membership is read at login, so the playbook's `usermod` takes effect o
 one, and restarting `waybar.service` in the running session is not enough, the user manager
 keeps the group set it started with.
 
-### waybar from source, and why it does not replace the package
+## waybar from source, and why it does not replace the package
 
 trixie ships waybar 0.12.0 (February 2025) and will not move. 0.15.0 (February 2026) is in
 sid and forky, but there is no trixie-backports build, so the only route is source. In
@@ -386,7 +192,7 @@ which saves this playbook from naming waybar's entire runtime library set and ke
 step with upstream, and a working fallback bar on a machine where the build was skipped or
 failed. Nothing in the source build collides with a path dpkg owns.
 
-### Two meson options that are not defaults, and one that is a trap
+## Two meson options that are not defaults, and one that is a trap
 
 Every optional feature in `meson_options.txt` is `auto`, so **the -dev packages installed
 are what decides which modules get compiled in**. That is why the build-dep list is Debian's
@@ -414,7 +220,7 @@ is by unit name, so `waybar.service` stays enabled through the package's preset 
 The unit is `resources/waybar.service.in` with `@prefix@` filled in, which is all the
 skipped step would have done. `ExecStart` is the only line the prefix touches.
 
-### The wallpaper chain belongs to the dotfiles, not here
+## The wallpaper chain belongs to the dotfiles, not here
 
 `wal` itself is not installed by this playbook and should not be. The full chain is pywal16
 (a `uv tool install pywal16`, symlinked at `~/.local/bin/wal`), `imagemagick` for its
@@ -429,19 +235,3 @@ nothing. That matters more than it sounds, because waybar's `style.css` opens wi
 missing colour file is a hard parse error, so waybar exits 1, and systemd gives up after
 five restarts with "Start request repeated too quickly". A desktop with no bar at all,
 from one absent font-and-image utility.
-
-## Testing
-
-Everything here is exercised on a real cold install in a virt-manager VM, not just linted.
-See the Testing section of `CLAUDE.md` for the snapshot loop.
-
-One trap worth knowing: do not export `LC_ALL=C` in the shell you run `ssh` from. Debian's
-`/etc/ssh/ssh_config` has `SendEnv LANG LC_*` and the guest's sshd has the matching
-`AcceptEnv`, so it overrides the guest's UTF-8 locale and Ansible refuses to start with
-"Ansible requires the locale encoding to be UTF-8; Detected None".
-
-## House style
-
-- POSIX `sh`, shellcheck-clean, no dependency on anything outside a stock trixie install.
-- Playbooks pass `ansible-lint` at the production profile.
-- `--no-install-recommends` everywhere, with anything genuinely needed named explicitly.
