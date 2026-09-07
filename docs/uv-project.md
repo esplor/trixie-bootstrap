@@ -6,6 +6,10 @@ tooling that a `--no-dev` sync just left out. Rather than repeat `--no-dev` on e
 command, `default-groups = []` makes dev opt-in: plain `uv sync` and `uv run` stay lean,
 and linting is `uv run --group dev ansible-lint base.yml` when you want it.
 
+`zensical` is in that same dev group, so previewing the docs is
+`uv run --group dev zensical serve`, which is all `make docs-serve` is. The flag is easy to
+forget and the failure is unhelpful, which is the whole reason that alias exists.
+
 `python-preference = "only-system"` pins uv to trixie's own Python 3.13, so no machine ends
 up with a second interpreter it did not ask for. There is no `.python-version`, since
 pinning one invites uv to fetch a matching build.

@@ -12,8 +12,9 @@ nothing else.
 
 - `README.md` is the commands only. Anything explanatory belongs in `docs/`.
 - Start small. One script, one job. No new abstraction until there is a second use case.
-- Playbooks run against localhost. No roles, no inventory, no `ansible.cfg`, no Makefile
-  until explicitly asked for.
+- Playbooks run against localhost. No roles, no inventory, no `ansible.cfg`.
+- The `Makefile` holds one-line aliases for commands too long to retype, nothing else. No
+  build logic, no dependencies between targets; a recipe needing a second line is a script.
 - POSIX `sh` house style: `#!/usr/bin/env sh`, `set -e` plus the pipefail probe,
   shellcheck-clean.
 - Self-contained. Nothing here may source `~/.dotfiles`; it is not cloned yet at
