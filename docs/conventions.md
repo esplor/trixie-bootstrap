@@ -5,10 +5,18 @@
 
 Everything here is exercised on a real cold install in a virt-manager VM
 (`debian-bootstrap-claude`, `qemu:///system`), not just linted. A minimal trixie install
-has no git, curl or wget, so the script is copied in over ssh rather than cloned:
+has no git, curl or wget, so the script is copied in over ssh rather than cloned.
+
+The VM takes its address from libvirt's DHCP, so it needs a name before any of this is
+typeable. Ask for the address, then put it in `~/.ssh/config` as
+`Host virt-trixie-bootstrap`:
 
 ```sh
-scp bootstrap.sh trixie: && ssh -t trixie 'sh bootstrap.sh'
+virsh -c qemu:///system domifaddr debian-bootstrap-claude
+```
+
+```sh
+scp bootstrap.sh virt-trixie-bootstrap: && ssh -t virt-trixie-bootstrap 'sh bootstrap.sh'
 ```
 
 `ssh -t` because sudo needs a tty for its password prompt. Snapshot the VM after install
