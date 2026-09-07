@@ -219,7 +219,8 @@ failed. Nothing in the source build collides with a path dpkg owns.
 ## Three meson options that are not defaults, and one that is a trap
 
 Every optional feature in `meson_options.txt` is `auto`, so **the -dev packages installed
-are what decides which modules get compiled in**. That is why the build-dep list is Debian's
+are what decides which modules get compiled in**, but only once `--wrap-mode=nofallback`
+is passed; the last section below is why. That is why the build-dep list is Debian's
 own `Build-Depends` for 0.15.0-1 minus the entries for modules the config does not use
 (mpd, jack, sndio, gps, cava, pipewire, mpris, wireplumber). Two of them are not obvious:
 `libinput-dev` is named for `keyboard-state`, which needs libevdev, and it also brings
@@ -269,6 +270,29 @@ The VM never saw it because a minimal trixie has no catch2 at all, which is the 
 of hole as the notebook's niri build depending on three packages that were already there.
 Disabling the option outright is what makes the build depend on the named build
 dependencies and nothing else.
+
+## --wrap-mode=nofallback, or the build installs things nobody asked for
+
+An unfound dependency does not simply disable its feature. meson falls back to a
+subproject, downloads the source, builds it, and `meson install` then writes that
+subproject into the prefix alongside waybar. Two got through before this was understood:
+
+- **catch2**, which is how `/usr/local/include/catch2` and `libCatch2.a` appeared on both
+  the test VM and a real machine, dated to the minute of the first waybar build. That
+  install is partial, so the *second* build finds the `catch2.pc` the first one left,
+  prefers it over the subproject, and dies on a header the install omitted. First run
+  green, second run red, broken by its own output.
+- **libcava**, which linked `libcava.so` into the binary for a module the dependency list
+  deliberately excludes. `/usr/local/lib/x86_64-linux-gnu` is in `ld.so.conf.d`, but the
+  build does not run `ldconfig`, so the installed waybar could not start at all:
+  `error while loading shared libraries: libcava.so`.
+
+The VM got catch2 but not cava, purely because the cava subproject needs build
+dependencies a minimal trixie lacks and a developer's machine happens to have. That is the
+whole argument for the flag. Without it, which modules a build produces depends on what
+else is installed for unrelated reasons, which is the opposite of what this playbook is
+for. With it, a dependency that is not installed disables its feature and nothing else
+happens.
 
 ## The wallpaper chain belongs to the dotfiles, not here
 

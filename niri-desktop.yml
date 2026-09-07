@@ -465,7 +465,7 @@
           - libgtk-layer-shell-dev
           - libgtkmm-3.0-dev
           # Only used when the compiler has no C++20 chrono time zones. g++ 14 does, but
-          # without this meson would answer a failed probe by fetching a subproject.
+          # a failed probe is a hard error under --wrap-mode=nofallback, so it is named.
           - libhowardhinnant-date-dev
           - libinput-dev  # keyboard-state, plus backlight through libudev-dev
           - libjsoncpp-dev
@@ -519,6 +519,7 @@
               meson setup build
               --prefix=/usr/local
               --buildtype=release
+              --wrap-mode=nofallback
               -Drfkill=enabled
               -Dsystemd=disabled
               -Dtests=disabled
