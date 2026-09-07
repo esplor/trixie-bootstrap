@@ -78,8 +78,30 @@ Both build directories pass `path: /var/tmp`, which is the FHS home for temporar
 large or too long-lived for `/tmp`, and is ext4 on the root filesystem. `neovim.yml` gets
 away with the default only because its build tree is small.
 
-Budget roughly 5 GB of disk and, with eight parallel `rustc` and no swap, more than 4 GB of
-RAM. The VM does this comfortably on 8 cores and 8 GB.
+Budget roughly 5 GB of disk. RAM is the part that bites, and `cargo_build_jobs` is what
+holds it down.
+
+## CARGO_BUILD_JOBS, because the peak is otherwise a race
+
+cargo defaults its job count to the core count, so RAM demand scales with cores rather than
+with the machine's memory. A single `rustc` on niri's lib crate peaks near 1.5 GB, which
+means four cores can want 6 GB for a build that would fit in 4.
+
+That makes the failure intermittent, and intermittent is worse than reproducible. A 2 GB,
+two-core VM was OOM-killed 5m33s into the niri build:
+
+```
+Out of memory: Killed process 28231 (rustc) total-vm:2761372kB, anon-rss:1512060kB
+```
+
+The playbook reports it as a plain build failure, `rc: 101`, and only `signal: 9, SIGKILL`
+at the end of cargo's output says what really happened. The same build then succeeded on
+the next run from a clean tree, because the heavy crates happened not to align that time.
+
+Both cargo tasks therefore pass `CARGO_BUILD_JOBS`, set from the `cargo_build_jobs` var at
+the top of the play. At 2 the peak is roughly 3 GB whatever the core count, so the build
+fits a 4 GB machine by arithmetic rather than by luck. Raise it on a machine with memory to
+spare; it only costs build time.
 
 ## rustup, pinned, rather than trixie's cargo
 
