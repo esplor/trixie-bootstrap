@@ -216,7 +216,7 @@ which saves this playbook from naming waybar's entire runtime library set and ke
 step with upstream, and a working fallback bar on a machine where the build was skipped or
 failed. Nothing in the source build collides with a path dpkg owns.
 
-## Two meson options that are not defaults, and one that is a trap
+## Three meson options that are not defaults, and one that is a trap
 
 Every optional feature in `meson_options.txt` is `auto`, so **the -dev packages installed
 are what decides which modules get compiled in**. That is why the build-dep list is Debian's
@@ -256,6 +256,19 @@ is by unit name, so `waybar.service` stays enabled through the package's preset 
 
 The unit is `resources/waybar.service.in` with `@prefix@` filled in, which is all the
 skipped step would have done. `ExecStart` is the only line the prefix touches.
+
+`-Dtests=disabled` is the third, and it was found the hard way: the same build that
+succeeds in the VM fails on a machine with a Catch2 install under `/usr/local`. The
+`tests` option is `auto` like the rest, so meson enables the test targets whenever it
+finds catch2 through `catch2.pc`, and then compiles a test suite this playbook never runs.
+Where that install is incomplete the build dies partway through with `fatal error:
+catch2/internal/catch_config_prefix_messages.hpp`, on a target whose output would have
+been thrown away regardless.
+
+The VM never saw it because a minimal trixie has no catch2 at all, which is the same class
+of hole as the notebook's niri build depending on three packages that were already there.
+Disabling the option outright is what makes the build depend on the named build
+dependencies and nothing else.
 
 ## The wallpaper chain belongs to the dotfiles, not here
 

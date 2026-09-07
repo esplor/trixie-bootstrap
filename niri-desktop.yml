@@ -521,6 +521,7 @@
               --buildtype=release
               -Drfkill=enabled
               -Dsystemd=disabled
+              -Dtests=disabled
               -Dniri=true
             chdir: "{{ waybar_build.path }}"
           changed_when: true
