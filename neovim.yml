@@ -12,6 +12,43 @@
     ansible_python_interpreter: /usr/bin/python3
     nvim_version: v0.12.5
   tasks:
+    # Unconditional, unlike the build deps below: these are what the dotfiles' config
+    # needs at runtime, so a machine that already has the right nvim still wants them.
+    #
+    # Named in full, including packages base.yml and bootstrap.sh already install. A
+    # playbook that leans on another playbook having run is a trap on the first machine
+    # where it has not, and git is exactly that: it used to sit only in the version-gated
+    # build block below, so a machine that already had the right nvim never got it, while
+    # lazy.nvim shells out to git to clone plugins on every single start.
+    - name: Install neovim runtime dependencies
+      become: true
+      ansible.builtin.apt:
+        name:
+          - build-essential  # telescope-fzf-native's build = "make", treesitter parsers
+          - ca-certificates  # TLS for the lazy.nvim clones and mason's downloads
+          - curl  # mason core util
+          - fd-find  # snacks.picker.explorer, telescope; Debian names the binary fdfind
+          - git  # lazy.nvim clones and updates every plugin through it
+          - imagemagick  # image.nvim, to convert anything that is not already a PNG
+          - libglib2.0-bin  # gio, the trash command snacks.explorer deletes through
+          # lazy.nvim installs image.nvim as a luarock, so it bootstraps hererocks, which
+          # compiles Lua 5.1 with -DLUA_USE_READLINE and then configures luarocks. Without
+          # these two the compile dies on readline/readline.h, luarocks configure dies on
+          # "Could not find 'unzip'", and every nvim start ends in "Too many rounds of
+          # missing plugins". See NOTES.md.
+          - libreadline-dev
+          - unzip
+          - luarocks  # mason's luarocks manager; distinct from lazy.nvim's hererocks
+          - python3-venv  # mason's PyPI installer runs -m venv before pipping a tool in
+          - ripgrep  # Snacks.picker.grep() and telescope's live-grep both hard-require it
+          - wget  # mason core util
+          - wl-clipboard  # the "+ and "* registers
+          - xdg-utils  # xdg-open, behind vim.ui.open
+        state: present
+        install_recommends: false
+        update_cache: true
+        cache_valid_time: 3600
+
     - name: Check which neovim is installed
       ansible.builtin.command: nvim --version
       register: nvim_installed
