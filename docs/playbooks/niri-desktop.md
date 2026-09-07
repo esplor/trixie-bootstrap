@@ -294,21 +294,33 @@ else is installed for unrelated reasons, which is the opposite of what this play
 for. With it, a dependency that is not installed disables its feature and nothing else
 happens.
 
-## The wallpaper chain belongs to the dotfiles, not here
+## pywal is installed here, the wallpaper it renders is not
 
-`wal` itself is not installed by this playbook and should not be. The full chain is pywal16
-(a `uv tool install pywal16`, symlinked at `~/.local/bin/wal`), `imagemagick` for its
-default `wal` backend, and the `wallpapers` stow package for the image the config names.
-That is three things that only make sense once the dotfiles are cloned and stowed, so they
-belong to the dotfiles playbook that does not exist yet. `swaybg` is different, and is
-here: it is a desktop component any wallpaper approach needs, pywal or not.
+This reverses an earlier decision, kept on the page because half of its reasoning still
+holds. The chain is pywal16 (`uv tool install pywal16`, symlinked at `~/.local/bin/wal`),
+`imagemagick` for its default backend, and the `wallpapers` stow package for the image
+`config.kdl` names. The first two are here now, the third is not, and neither is anything
+that clones or stows the dotfiles.
 
-Without imagemagick, `wal` fails with "Imagemagick wasn't found on your system" and writes
-nothing. That matters more than it sounds, because waybar's `style.css` opens with
-`@import "~/.cache/wal/colors-waybar.css"` and uses `@foreground` and `@color1` from it. A
-missing colour file is a hard parse error, so waybar exits 1, and systemd gives up after
-five restarts with "Start request repeated too quickly". A desktop with no bar at all,
-from one absent font-and-image utility.
+The argument for leaving all three out was that they only make sense once the dotfiles are
+stowed. That holds for the image, which is useless alone, but not for pywal. This playbook
+already installs `swaybg` *because* pywal shells out to it, and the configs it exists to
+serve read `~/.cache/wal` in three places: niri's `include`, kitty's `include` and waybar's
+`@import`, with tmux inheriting the palette a fourth time through kitty. Installing pywal's
+setter and its backend while leaving pywal itself to a dotfiles playbook that does not
+exist was the inconsistency. It also failed silently: the startup `wal -ei ...` died with
+command not found, so there was no wallpaper and no `~/.cache/wal` at all.
+
+`imagemagick` is named here rather than leaned on from `neovim.yml`, which installs it too,
+per the rule at the top of this page. Without it `wal` fails with "Imagemagick wasn't found
+on your system" and writes nothing. That matters more than it sounds, because waybar's
+`style.css` opens with `@import "~/.cache/wal/colors-waybar.css"` and uses `@foreground`
+and `@color1` from it. A missing colour file is a hard parse error, so waybar exits 1, and
+systemd gives up after five restarts with "Start request repeated too quickly". A desktop
+with no bar at all, from one absent font-and-image utility.
+
+Only waybar dies. niri's include is `optional=true` and kitty ignores an include it cannot
+read, so both keep the fallback colors compiled into their configs.
 
 ## tmux is here rather than in base.yml
 

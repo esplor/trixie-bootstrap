@@ -51,6 +51,7 @@
           - fuzzel  # Mod+D
           - gnome-keyring  # the Secret portal niri-portals.conf prefers
           - gnupg  # dearmors the Chrome signing key, below
+          - imagemagick  # pywal's default backend; without it wal writes nothing
           - kitty  # Mod+Shift+Return
           - network-manager-applet  # the tray icon, via /etc/xdg/autostart
           - pavucontrol  # waybar's pulseaudio on-click
@@ -99,6 +100,17 @@
     # module dies, with "Failed to find keyboard device: EACCES" in the journal.
     #
     # Group membership is only picked up at login, so this takes effect on the next one.
+    # swaybg above is only the setter pywal shells out to; nothing installed pywal
+    # itself, so on a fresh machine the startup "wal -ei ~/Wallpapers/..." failed and
+    # niri, kitty and waybar all kept their fallback colors. A uv tool rather than a
+    # package, since trixie has no pywal16, and by absolute path because bootstrap.sh
+    # installs uv with UV_NO_MODIFY_PATH=1, so a non-interactive PATH has no
+    # ~/.local/bin. No become, so it lands in the invoking user's home, not root's.
+    - name: Install pywal16 as a uv tool
+      ansible.builtin.command:
+        cmd: "{{ user_home }}/.local/bin/uv tool install pywal16"
+        creates: "{{ user_home }}/.local/bin/wal"
+
     - name: Add the invoking user to the input group
       become: true
       ansible.builtin.user:
