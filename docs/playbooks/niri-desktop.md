@@ -168,14 +168,26 @@ xwayland-satellite has no version flag at all, incidentally: `--version` panics 
 "Unrecognized argument". Hence the stamp file at
 `/usr/local/share/xwayland-satellite-version`.
 
-## /usr, not /usr/local, for the binaries
+## /usr/local for the binaries, /usr for the resource files
 
-Upstream's manual-installation table says `/usr/local`, and the notebook deliberately
-ignores it. The layout mirrors niri's own .deb and .rpm packaging, so the resource files
-are used verbatim: `niri.service`'s bare `ExecStart=niri` resolves via `/usr/bin` on
-systemd's user PATH. The fonts are the exception and go to `/usr/local/share/fonts`, since
-they are not part of any package's layout, only system-wide instead of the
-`~/.local/share/fonts` that getnf uses so a greeter and other users get them too.
+niri, niri-session and xwayland-satellite go to `/usr/local/bin`, as upstream's
+manual-installation table says, next to the meson-installed noctalia. The resource files
+stay where niri's own .deb puts them (`/usr/share/wayland-sessions`,
+`/usr/lib/systemd/user`, `/usr/share/xdg-desktop-portal`), since that is where display
+managers, systemd and the portal look. They are used verbatim: none holds an absolute
+path, and `niri.service`'s bare `ExecStart=niri` and `niri.desktop`'s `Exec=niri-session`
+resolve via `/usr/local/bin`, which systemd's user PATH lists ahead of `/usr/bin`.
+
+The niri guard runs `/usr/local/bin/niri --version` by absolute path, like noctalia's, so
+no other niri on root's PATH can answer for the build.
+
+An earlier version of this playbook installed the binaries to `/usr/bin`. Its
+xwayland-satellite stamp would still match, so the guard also checks that
+`/usr/local/bin/xwayland-satellite` exists. The old `/usr/bin` copies are not removed;
+`/usr/local/bin` shadows them, but delete them by hand on a machine that ran it.
+
+The fonts go to `/usr/local/share/fonts` too, system-wide instead of the
+`~/.local/share/fonts` that getnf uses, so a greeter and other users get them.
 
 ## Google Chrome configures its own apt source
 

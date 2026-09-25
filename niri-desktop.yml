@@ -196,8 +196,9 @@
         install_recommends: false
         update_cache: true
 
+    # By absolute path, so a stray niri elsewhere on root's PATH cannot answer for the build.
     - name: Check which niri is installed
-      ansible.builtin.command: niri --version
+      ansible.builtin.command: /usr/local/bin/niri --version
       register: niri_installed
       changed_when: false
       failed_when: false
@@ -208,6 +209,13 @@
       ansible.builtin.stat:
         path: "{{ xwayland_satellite_stamp }}"
       register: xwayland_satellite_stat
+
+    # The stamp alone would let a machine that installed to /usr/bin before the move to
+    # /usr/local/bin skip the build, so the binary has to be there too.
+    - name: Check whether the xwayland-satellite binary exists
+      ansible.builtin.stat:
+        path: /usr/local/bin/xwayland-satellite
+      register: xwayland_satellite_bin
 
     - name: Read the installed xwayland-satellite version
       ansible.builtin.slurp:
@@ -228,7 +236,8 @@
           {{ (niri_version | default('') | regex_replace('^v', ''))
              not in (niri_installed.stdout | default('')) }}
         xwayland_satellite_needs_build: >-
-          {{ not xwayland_satellite_stat.stat.exists
+          {{ not xwayland_satellite_bin.stat.exists
+             or not xwayland_satellite_stat.stat.exists
              or (xwayland_satellite_installed.content | default('') | b64decode | trim)
                 != xwayland_satellite_version }}
         # Prints "noctalia v5.1.0 (<git describe>)", leading v included.
@@ -357,13 +366,13 @@
           environment:
             CARGO_BUILD_JOBS: "{{ build_jobs }}"
 
-        # niri spawns the binary directly off systemd's user PATH, so it goes to /usr/bin
-        # and the standalone xwayland-satellite.service unit is not needed.
-        - name: Install xwayland-satellite into /usr/bin
+        # niri spawns the binary directly off systemd's user PATH, which includes
+        # /usr/local/bin, so the standalone xwayland-satellite.service unit is not needed.
+        - name: Install xwayland-satellite into /usr/local/bin
           become: true
           ansible.builtin.copy:
             src: "{{ xwayland_satellite_build.path }}/target/release/xwayland-satellite"
-            dest: /usr/bin/xwayland-satellite
+            dest: /usr/local/bin/xwayland-satellite
             mode: "0755"
             remote_src: true
 
@@ -435,14 +444,15 @@
             - src: resources/niri-shutdown.target
               dest: /usr/lib/systemd/user/niri-shutdown.target
 
-        # /usr, not the /usr/local that upstream's manual-installation table suggests.
-        # The layout mirrors niri's own .deb, so the resource files are used verbatim:
-        # niri.service's bare "ExecStart=niri" resolves via /usr/bin on systemd's user PATH.
+        # /usr/local, as upstream's manual-installation table says, next to noctalia. The
+        # resource files still go to /usr, where systemd and display managers look, and are
+        # used verbatim: niri.service's bare "ExecStart=niri" and niri.desktop's
+        # "Exec=niri-session" resolve via /usr/local/bin on the PATH.
         #
         # Last, deliberately. "niri --version" is what the guard at the top of this play
         # reads, so installing the binary before the resource files would let a failure
         # in between satisfy the guard and make the next run skip the whole block.
-        - name: Install the niri binaries into /usr/bin
+        - name: Install the niri binaries into /usr/local/bin
           become: true
           ansible.builtin.copy:
             src: "{{ niri_build.path }}/{{ item.src }}"
@@ -451,9 +461,9 @@
             remote_src: true
           loop:
             - src: target/release/niri
-              dest: /usr/bin/niri
+              dest: /usr/local/bin/niri
             - src: resources/niri-session
-              dest: /usr/bin/niri-session
+              dest: /usr/local/bin/niri-session
       always:
         - name: Remove the niri build directory
           ansible.builtin.file:
