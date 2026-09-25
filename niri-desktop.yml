@@ -37,12 +37,15 @@
     user_home: "{{ lookup('env', 'HOME') }}"
     cargo: "{{ lookup('env', 'HOME') }}/.cargo/bin/cargo"
     rustup: "{{ lookup('env', 'HOME') }}/.cargo/bin/rustup"
-    # cargo defaults its job count to the core count, and a single rustc on niri's lib
-    # crate peaks near 1.5 GB, so a 4-core machine can want 6 GB for a build that fits in
-    # 4. Capping the jobs makes the peak predictable rather than a race between whichever
-    # crates happen to compile at once. Found by OOM-killing a 2 GB, 2-core VM mid-build,
-    # where the same build then succeeded on the retry.
-    cargo_build_jobs: 2
+    # cargo defaults its job count to the core count and ninja to the core count plus
+    # two, so RAM demand scales with cores rather than with RAM. The heaviest single job
+    # measured is one rustc on niri's lib crate at about 2 GB, so this allows one job per
+    # 2 GB, never more than there are cores and never fewer than one. Found by
+    # OOM-killing a 2 GB, 2-core VM mid-build, where the same build then succeeded on the
+    # retry. See docs/playbooks/niri-desktop.md.
+    build_jobs: >-
+      {{ [[ansible_facts['memtotal_mb'] // 2000,
+           ansible_facts['processor_vcpus']] | min, 1] | max }}
     xwayland_satellite_stamp: /usr/local/share/xwayland-satellite-version
     user_name: "{{ lookup('env', 'USER') }}"
   tasks:
@@ -376,7 +379,7 @@
             chdir: "{{ xwayland_satellite_build.path }}"
           changed_when: true
           environment:
-            CARGO_BUILD_JOBS: "{{ cargo_build_jobs }}"
+            CARGO_BUILD_JOBS: "{{ build_jobs }}"
 
         # niri spawns the binary directly off systemd's user PATH, so it goes to /usr/bin
         # and the standalone xwayland-satellite.service unit is not needed.
@@ -426,7 +429,7 @@
             chdir: "{{ niri_build.path }}"
           changed_when: true
           environment:
-            CARGO_BUILD_JOBS: "{{ cargo_build_jobs }}"
+            CARGO_BUILD_JOBS: "{{ build_jobs }}"
 
         # The other three resource destinations come from systemd and xdg-desktop-portal,
         # but nothing installed here provides this one: it normally arrives with a display
@@ -574,7 +577,7 @@
 
         - name: Build waybar
           ansible.builtin.command:
-            cmd: meson compile -C build
+            cmd: meson compile -C build -j {{ build_jobs }}
             chdir: "{{ waybar_build.path }}"
           changed_when: true
 

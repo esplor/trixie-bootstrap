@@ -85,14 +85,15 @@ Both build directories pass `path: /var/tmp`, which is the FHS home for temporar
 large or too long-lived for `/tmp`, and is ext4 on the root filesystem. `neovim.yml` gets
 away with the default only because its build tree is small.
 
-Budget roughly 5 GB of disk. RAM is the part that bites, and `cargo_build_jobs` is what
+Budget roughly 5 GB of disk. RAM is the part that bites, and `build_jobs` is what
 holds it down.
 
-## CARGO_BUILD_JOBS, because the peak is otherwise a race
+## One build job per 2 GB, because the peak is otherwise a race
 
-cargo defaults its job count to the core count, so RAM demand scales with cores rather than
-with the machine's memory. A single `rustc` on niri's lib crate peaks near 1.5 GB, which
-means four cores can want 6 GB for a build that would fit in 4.
+cargo defaults its job count to the core count, and ninja to the core count plus two, so RAM
+demand scales with cores rather than with the machine's memory. A single `rustc` on niri's
+lib crate peaks near 2 GB, which means four cores can want 8 GB for a build that would fit
+in 4.
 
 That makes the failure intermittent, and intermittent is worse than reproducible. A 2 GB,
 two-core VM was OOM-killed 5m33s into the niri build:
@@ -105,10 +106,17 @@ The playbook reports it as a plain build failure, `rc: 101`, and only `signal: 9
 at the end of cargo's output says what really happened. The same build then succeeded on
 the next run from a clean tree, because the heavy crates happened not to align that time.
 
-Both cargo tasks therefore pass `CARGO_BUILD_JOBS`, set from the `cargo_build_jobs` var at
-the top of the play. At 2 the peak is roughly 3 GB whatever the core count, so the build
-fits a 4 GB machine by arithmetic rather than by luck. Raise it on a machine with memory to
-spare; it only costs build time.
+Every build therefore takes its job count from the `build_jobs` var at the top of the
+play: `CARGO_BUILD_JOBS` for the two cargo builds, `meson compile -j` for waybar. It is
+derived rather than fixed: one job per 2 GB of `ansible_facts['memtotal_mb']`, clamped
+between 1 and `ansible_facts['processor_vcpus']`, so the build fits by arithmetic rather
+than by luck and still uses a big machine. A 4 GB VM gets 1 job, 8 GB gets 3, and a 16 GB,
+16-thread laptop gets 7.
+
+The 2 GB is measured, not guessed. With 2 jobs on an 8 GB VM, used memory peaked at
+2.4 GB for niri, one `rustc` at 2.0 GB of it. waybar was the one build left at ninja's
+default, and there 6 jobs peaked at 3.8 GB, most of a 4 GB machine, which is why it is
+capped now too.
 
 ## rustup, pinned, rather than trixie's cargo
 
