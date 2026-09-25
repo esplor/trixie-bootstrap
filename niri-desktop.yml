@@ -25,12 +25,12 @@
     noctalia_version: v5.1.0
     rust_version: 1.96.0
     nerd_fonts_version: v3.5.1
-    # Only the families the dotfiles' configs name. Nerd Fonts renames Cascadia Code to
-    # CaskaydiaCove, which is what kitty.conf actually asks for.
+    # Only the families the dotfiles' configs name: CascadiaCode for kitty, which Nerd
+    # Fonts renames to the CaskaydiaCove that kitty.conf actually asks for, and FiraCode
+    # for alacritty.
     nerd_fonts:
       - CascadiaCode
       - FiraCode
-      - JetBrainsMono
     font_dir: /usr/local/share/fonts
     # lookup() rather than a fact, which is right in the same way for every task
     # regardless of who it runs as. See base.yml.
