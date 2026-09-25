@@ -46,6 +46,13 @@ at PipeWire, which matters for programs that talk the raw ALSA API rather than l
 wine, older games, `aplay`, sox, anything pinned to `hw:0`. None of the desktop's own
 software does, but it arrives with the metapackage and costs nothing.
 
+The metapackage does not cover everything. `rtkit` is a **Recommends** of `pipewire-bin`,
+one level further down, so it is dropped too, and nothing fails loudly: pipewire,
+pipewire-pulse and wireplumber each log
+`RTKit error: org.freedesktop.DBus.Error.ServiceUnknown` at login and fall back to normal
+scheduling priority. Audio works until the machine is
+under load, and then it crackles. Found in the VM's journal, so it is named explicitly.
+
 ## The build dependencies in the notebook were wrong
 
 Upstream publishes the real lists, in `DEPS_APT` in niri's `.github/workflows/ci.yml` and

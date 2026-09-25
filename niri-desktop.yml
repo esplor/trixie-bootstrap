@@ -76,6 +76,10 @@
           # dependency is visible and goes through --no-install-recommends like the rest.
           - python3-debian
           - power-profiles-daemon  # waybar module
+          # Realtime scheduling for pipewire, pipewire-pulse and wireplumber. Only a
+          # Recommends of pipewire-bin, which pipewire-audio does not fix, and without it
+          # all three log "RTKit error: ServiceUnknown" and run at normal priority.
+          - rtkit
           - sway-notification-center  # waybar's custom/notification (swaync-client)
           # Nothing in config.kdl names swaybg, so it looks unused until the desktop comes
           # up with a grey void behind the windows. It is what pywal shells out to when
