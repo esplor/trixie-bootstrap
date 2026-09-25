@@ -329,6 +329,15 @@ And the secret agent only answers Wi-Fi requests, so a VPN that asks for a passw
 connect time needs `nmcli --ask connection up <name>` or `nmtui`, both of which come with
 `network-manager` itself.
 
+Two audio tools were never in the list and are here now for the same reason. EasyEffects
+does the processing, equalizer, crossfeed and the rest, and noctalia does none: it can
+switch EasyEffects presets, no more. Its effects are LV2 plugins that are only
+**Recommends**, the `pipewire-pulse` trap again, so `lsp-plugins-lv2`, `mda-lv2`,
+`zam-plugins` and `calf-plugins` are named. Calf is listed there only as an alternative to
+LSP, but it is the one that provides the bass enhancer. Without them the effects show as not installed, and a preset that
+uses one skips it without saying so. Helvum is a patchbay, for links noctalia cannot make:
+noctalia moves a stream to one output, Helvum can send it to several.
+
 Removing a package from this list does not remove it from a machine that already has it.
 `apt autoremove` will not touch it either, because it was installed by name.
 

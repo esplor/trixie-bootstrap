@@ -54,11 +54,26 @@
           - brightnessctl  # the dotfiles' bl-* shell functions; noctalia has its own
           - ca-certificates  # TLS for the rustup, font and Chrome downloads
           - curl  # fetches the rustup installer
+          # Audio effects on the output, driven by the dotfiles' easyeffects presets.
+          # The LV2 plugins that implement most of its effects are only Recommends, so
+          # they are named: lsp-plugins-lv2 for the equalizer and the dynamics, mda-lv2
+          # and zam-plugins for the rest. Without them the effects are listed but greyed
+          # out as not installed, and a preset that uses one silently skips it.
+          # calf-plugins is the one alternative in that Recommends, and the only source
+          # of the bass enhancer the dotfiles' output preset uses.
+          - calf-plugins
+          - easyeffects
+          - lsp-plugins-lv2
+          - mda-lv2
+          - zam-plugins
           - fontconfig  # fc-cache, below
           # The Secret portal niri-portals.conf prefers, and the Secret Service noctalia
           # keeps its credentials and encrypted state in.
           - gnome-keyring
           - gnupg  # dearmors the Chrome signing key, below
+          # A patchbay for links noctalia cannot make, such as one app to several
+          # outputs at once; noctalia only moves a stream to a single output.
+          - helvum
           - kitty  # Mod+Shift+Return
           # Card profiles: Bluetooth A2DP against headset mode, HDMI output. noctalia
           # routes streams and sets volumes but cannot switch a card's profile.
