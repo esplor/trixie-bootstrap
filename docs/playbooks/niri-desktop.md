@@ -2,9 +2,9 @@
 
 niri is not packaged in trixie at all (`apt-cache policy niri` comes back empty), and
 neither is xwayland-satellite, so both are built from source the way `~/code/desktop`'s
-`niri-build.sh` and `xwayland-satellite-build.sh` did it by hand. Configuration stays out
-of it: `~/.config/{niri,waybar,kitty}` are stow symlinks into `~/.dotfiles`, so this
-playbook installs software and stops there.
+`niri-build.sh` and `xwayland-satellite-build.sh` did it by hand, and the noctalia shell
+on top of them. Configuration stays out of it: `~/.config/{niri,noctalia,kitty}` are stow
+symlinks into `~/.dotfiles`, so this playbook installs software and stops there.
 
 Everything below was established by running it cold in the VM, not by reading the notebook
 scripts, which turned out to be wrong in both directions.
@@ -30,9 +30,9 @@ and `libspa-0.2-bluetooth` are **Recommends** of `wireplumber`, not Depends, so
 
 Losing `pipewire-pulse` is the expensive one, and it is invisible until something tries to
 make a sound. It is the PulseAudio server, and almost nothing speaks PipeWire natively:
-waybar's `pulseaudio` module, `pavucontrol`, the browser through cubeb, and a Flatpak app
-through its `--socket=pulseaudio` permission all talk the PulseAudio client API and reach
-PipeWire only through that shim. Without it the machine is simply mute, while `pactl info`
+`pavucontrol`, the browser through cubeb, and a Flatpak app through its
+`--socket=pulseaudio` permission all talk the PulseAudio client API and reach PipeWire
+only through that shim. Without it the machine is simply mute, while `pactl info`
 on a working one reports `Server Name: PulseAudio (on PipeWire)`. Losing
 `libspa-0.2-bluetooth` costs bluetooth audio in the same silent way.
 
@@ -107,16 +107,17 @@ at the end of cargo's output says what really happened. The same build then succ
 the next run from a clean tree, because the heavy crates happened not to align that time.
 
 Every build therefore takes its job count from the `build_jobs` var at the top of the
-play: `CARGO_BUILD_JOBS` for the two cargo builds, `meson compile -j` for waybar. It is
+play: `CARGO_BUILD_JOBS` for the two cargo builds, `meson compile -j` for noctalia. It is
 derived rather than fixed: one job per 2 GB of `ansible_facts['memtotal_mb']`, clamped
 between 1 and `ansible_facts['processor_vcpus']`, so the build fits by arithmetic rather
 than by luck and still uses a big machine. A 4 GB VM gets 1 job, 8 GB gets 3, and a 16 GB,
 16-thread laptop gets 7.
 
 The 2 GB is measured, not guessed. With 2 jobs on an 8 GB VM, used memory peaked at
-2.4 GB for niri, one `rustc` at 2.0 GB of it. waybar was the one build left at ninja's
-default, and there 6 jobs peaked at 3.8 GB, most of a 4 GB machine, which is why it is
-capped now too.
+2.4 GB for niri (one `rustc` at 2.0 GB of it) and 2.3 GB for noctalia (largest `cc1plus`
+920 MB). The waybar build this playbook used to carry was left at ninja's default, and
+there 6 jobs peaked at 3.8 GB, most of a 4 GB machine, which is what made the cap apply to
+every build rather than only cargo's.
 
 ## rustup, pinned, rather than trixie's cargo
 
@@ -232,169 +233,111 @@ transport". A later login works fine. That is unavoidable on the very machine st
 playbook targets.
 
 It is also unnecessary. The units live in `/usr/lib/systemd/user`, and a fresh login reads
-them; you have to log out and back in to start the new niri anyway. Enabling waybar is a
-no-op too: on a fresh trixie with waybar installed and nothing else done,
-`systemctl --user show waybar.service` already reports `UnitFileState=enabled`, with no
-symlink under `~/.config/systemd/user` and none shipped by the package. Same on a working
-machine. Confirmed by running it: a first niri session on a machine this playbook set up
-brings waybar up from `waybar.service` on its own, `enabled; preset: enabled`.
+them; you have to log out and back in to start the new niri anyway.
 
-That is also why niri's **default** config gives you two bars. It carries a
-`spawn-at-startup "waybar"` line, which starts a second one alongside the unit. The config
-in the dotfiles deletes that line deliberately, and says so in a comment. Nothing to fix
-here; it only shows up on a machine with no dotfiles stowed, such as the test VM.
+niri's **default** config carries a `spawn-at-startup "waybar"` line. waybar is not
+installed any more, so on a machine with no dotfiles stowed, such as the test VM, that line
+just fails quietly at login. The dotfiles' config starts noctalia instead.
 
-## swaybg and the input group, found by running the real configs
+## noctalia from source, pinned to a tag
 
-Two packages that no dependency chain and no reading of `config.kdl` would have turned up.
-Both came out of running the dotfiles' niri, waybar and kitty configs on the test VM.
+noctalia v5 is a native Wayland shell (bar, launcher, notifications, lock screen, OSDs) in
+C++23 on Meson, with no Qt or GTK. trixie does not package it. Upstream points Debian users
+at an APT repository with a trixie suite, but that repository is community-maintained,
+signed by an individual's key, and serves whatever the latest release is. Building the tag
+named in `noctalia_version` keeps the version a decision made in this repo, the same as
+niri.
 
-`swaybg` is the Wayland wallpaper daemon. Nothing in `config.kdl` names it: the startup
-line is `spawn-sh-at-startup "wal -ei ~/Wallpapers/LOTR/LOTR-ShallNotPass.jpg"`, and pywal
-shells out to whichever setter it finds. Without swaybg the desktop simply comes up with
-no wallpaper, and pywal still prints "Set the new wallpaper", so the log is no help. On a
-working machine there is a `swaybg -m fill -i ~/Wallpapers/...` process to point at, which
-is how it was found.
+Every package in upstream's Debian list exists on trixie, but the list as a whole does not
+install. It names `libcurl4-openssl-dev`, and trixie's `libqalculate-dev` Depends on
+`libcurl4-gnutls-dev`, which Conflicts with it, so apt rejects the entire set with "held
+broken packages". `apt-cache policy` on each name one at a time says nothing is wrong;
+only installing them together shows it. The playbook names the gnutls flavour instead,
+which provides the same `libcurl` pkg-config module that `meson.build` asks for.
 
-The `input` group is what waybar's `keyboard-state` module needs. It reads the Caps and Num
-LEDs straight off `/dev/input/event*`, and without the group it logs
-`Failed to find keyboard device: EACCES` and disables just that module, so the bar looks
-fine at a glance. niri does not need the group; logind hands it the devices through
-libseat. Membership is read at login, so the playbook's `usermod` takes effect on the next
-one, and restarting `waybar.service` in the running session is not enough, the user manager
-keeps the group set it started with.
+The libraries are not the whole story, because `meson.build` also reads protocol XML out of
+`wayland-protocols`' `pkgdatadir`, and one of those files is newer than trixie.
+`staging/ext-background-effect/ext-background-effect-v1.xml` arrived in wayland-protocols
+1.45; trixie has 1.44, so configure fails after every dependency has been found. It is the
+only file missing: every other system protocol noctalia generates code from is in 1.44.
+trixie-backports carries 1.47, so the playbook adds that suite and installs this one
+package from it with `state: latest`, which also moves a machine already on 1.44. A
+backports suite is `NotAutomatic`, so adding it changes nothing else on the machine, and
+the package is only XML. niri and xwayland-satellite do not read it at all; their protocol
+definitions come from Rust crates.
 
-## waybar from source, and why it does not replace the package
+The cache refresh is a separate task, and has to be. `ansible.builtin.apt` sets
+`APT::Default-Release` before it runs its own `update_cache`, so a single task with both
+fails on exactly the run that adds the source: `E:The value 'trixie-backports' is invalid
+for APT::Default-Release as such a release is not available in the sources`. The suite is
+not in `/var/lib/apt/lists` yet, and the update that would put it there is the step the
+error prevents.
 
-trixie ships waybar 0.12.0 (February 2025) and will not move. 0.15.0 (February 2026) is in
-sid and forky, but there is no trixie-backports build, so the only route is source. In
-between sit 528 commits, and the ones that matter are all in modules the bar actually uses:
-a memory leak in the continuous-script path (`custom/notification` runs `swaync-client -swb`
-through exactly that), the tray gaining `load_symbolic` icons and losing three menu bugs,
-`battery` updating on plug and unplug again, `network` learning rfkill state and getting its
-frequency unit right, and `temperature` finally dropping the `critical` class once things
-cool down. `keyboard-state`, `niri/window` and `power-profiles-daemon` got nothing: the
-first was not touched at all, and the other two only by the treewide clang-format sweep and
-a comment typo.
+Two more things are worth checking first because packagers hit them: `libstb-dev` must ship
+`stb/stb_image_resize2.h` (trixie's `0.0~git20241109` does), and meson needs
+`wireplumber-0.5`, which trixie has. `g++` 14 clears the GCC 13 floor for C++23.
 
-The `waybar` apt package stays installed. It is not there for the binary, which
-`/usr/local/bin/waybar` shadows on PATH, but for two other things: its dependency closure,
-which saves this playbook from naming waybar's entire runtime library set and keeping it in
-step with upstream, and a working fallback bar on a machine where the build was skipped or
-failed. Nothing in the source build collides with a path dpkg owns.
+The configure is PACKAGING.md's rather than the justfile's. `just configure release` adds
+`-Db_lto=true`, which moves a large part of the work into the final link and raises its
+memory peak, on a build that has to fit the same small VM as niri. `meson compile` gets
+`-j` from `build_jobs` because ninja's default is the core count plus two, the same race as
+cargo's. `-Dtests=disabled` is stated rather than left to `auto`, which means off for a
+release build only because upstream says so today. A feature option at `auto` decides
+itself from whatever it finds installed, and the waybar build this playbook used to carry
+was broken exactly that way, compiling a test suite against a partial Catch2 left in
+`/usr/local`. `-Djemalloc=enabled` turns upstream's `auto` into a hard requirement, so a
+missing `libjemalloc-dev` fails the build instead of quietly producing a binary without
+it. There is no `subprojects/` directory, so meson has nothing to fall back to and
+download; the vendored code lives in `third_party/`.
 
-## Three meson options that are not defaults, and one that is a trap
+The prefix is compiled into the binary as the asset lookup path, and the `assets/` tree is
+required at runtime, so the install is `meson install` from the configured build, never a
+copy of the binary. `--no-rebuild` keeps the root-owned install step from recompiling
+anything as root.
 
-Every optional feature in `meson_options.txt` is `auto`, so **the -dev packages installed
-are what decides which modules get compiled in**, but only once `--wrap-mode=nofallback`
-is passed; the last section below is why. That is why the build-dep list is Debian's
-own `Build-Depends` for 0.15.0-1 minus the entries for modules the config does not use
-(mpd, jack, sndio, gps, cava, pipewire, mpris, wireplumber). Two of them are not obvious:
-`libinput-dev` is named for `keyboard-state`, which needs libevdev, and it also brings
-`libudev-dev` for `backlight`, both as hard Depends. `libxkbregistry-dev` is the one
-dependency in `meson.build` with no feature option at all.
+What the playbook deliberately does not do is start it. No systemd unit ships and none is
+written; the dotfiles' niri config has `spawn-at-startup "noctalia"`. On niri, noctalia
+registers `org.freedesktop.Notifications` and `org.kde.StatusNotifierWatcher`, so nothing
+else in the session may hold either name. That is one of the reasons the packages below are
+gone rather than merely unused.
 
-`libupower-glib-dev` is the one entry kept for a module the config does not use yet. The
-`battery` module reads `/sys/class/power_supply` directly, which structurally cannot show
-a bluetooth headset, a wireless mouse or a controller, because none of them appear there.
-Only UPower enumerates those. Compiling the module in costs one build dependency and
-decides nothing; the bar shows a peripheral battery when, and only when, the dotfiles'
-waybar config grows an `upower` block.
+## What noctalia replaced, and what it did not
 
-Note what the version guard cannot see. `waybar_needs_build` compares the installed
-version against `waybar_version`, so changing a build dependency or a meson option on a
-machine already running 0.15.0 rebuilds nothing. Force it with
-`-e '{"waybar_needs_build": true}'`, in JSON: the `key=value` form passes the string
-`"true"`, and ansible-core 2.19 and later refuse a conditional that is not a real boolean.
+noctalia is one process covering what used to be a stack of small tools, so the playbook
+dropped each package it made redundant rather than leaving them installed and unused:
 
-`-Drfkill=enabled` is needed because that option's guard is `get_option('rfkill').enabled()`
-rather than `.allowed()`. A feature option left at `auto` is not `enabled()`, so the default
-silently compiles rfkill out and the network module loses its rfkill state. Debian's
-`debian/rules` passes exactly this one override and nothing else.
+| Removed | Replaced by noctalia's |
+|---|---|
+| `waybar`, its source build and build dependencies | bar |
+| `sway-notification-center` | notifications and history |
+| `fuzzel`, `wofi` | launcher |
+| `swaylock` | lock screen |
+| `swaybg`, pywal16, `imagemagick` | wallpaper, palette and app templates |
+| `network-manager-applet` | network panel and NetworkManager secret agent |
+| `ukui-polkit` | polkit agent |
+| `playerctl` | `noctalia msg media ...` |
 
-`-Dsystemd=disabled` is the trap. `--prefix=/usr/local` does not contain the unit file:
-`meson.build` reads `systemduserunitdir` out of `systemd.pc`, which is the absolute
-`/usr/lib/systemd/user`, so a plain build overwrites the file dpkg owns and the next
-`apt upgrade` quietly puts 0.12.0's unit back. Disabling the option skips only that install
-step, since `systemd_failed_units.cpp` and `-DHAVE_SYSTEMD_MONITOR` are gated on `is_linux`
-and the dependency is never linked against. The playbook writes the unit itself, into
-`/usr/local/lib/systemd/user`, which `systemd-analyze --user unit-paths` lists ahead of
-`/usr/lib/systemd/user`, so it shadows the packaged one rather than replacing it. Enablement
-is by unit name, so `waybar.service` stays enabled through the package's preset either way.
+The `input` group went with waybar: its `keyboard-state` module read the Caps and Num LEDs
+off `/dev/input`, and noctalia never opens an evdev node. Machines set up before this keep
+the membership, which is harmless.
 
-The unit is `resources/waybar.service.in` with `@prefix@` filled in, which is all the
-skipped step would have done. `ExecStart` is the only line the prefix touches.
+Three things stay, each for something noctalia cannot do. `pavucontrol` switches a card's
+profile, Bluetooth A2DP against headset mode or HDMI output; noctalia moves streams between
+outputs and sets volumes, but has no call to change a profile. `brightnessctl` backs the
+dotfiles' `bl-*` shell functions, even though the brightness keys now go through noctalia.
+And the secret agent only answers Wi-Fi requests, so a VPN that asks for a password at
+connect time needs `nmcli --ask connection up <name>` or `nmtui`, both of which come with
+`network-manager` itself.
 
-`-Dtests=disabled` is the third, and it was found the hard way: the same build that
-succeeds in the VM fails on a machine with a Catch2 install under `/usr/local`. The
-`tests` option is `auto` like the rest, so meson enables the test targets whenever it
-finds catch2 through `catch2.pc`, and then compiles a test suite this playbook never runs.
-Where that install is incomplete the build dies partway through with `fatal error:
-catch2/internal/catch_config_prefix_messages.hpp`, on a target whose output would have
-been thrown away regardless.
-
-The VM never saw it because a minimal trixie has no catch2 at all, which is the same class
-of hole as the notebook's niri build depending on three packages that were already there.
-Disabling the option outright is what makes the build depend on the named build
-dependencies and nothing else.
-
-## --wrap-mode=nofallback, or the build installs things nobody asked for
-
-An unfound dependency does not simply disable its feature. meson falls back to a
-subproject, downloads the source, builds it, and `meson install` then writes that
-subproject into the prefix alongside waybar. Two got through before this was understood:
-
-- **catch2**, which is how `/usr/local/include/catch2` and `libCatch2.a` appeared on both
-  the test VM and a real machine, dated to the minute of the first waybar build. That
-  install is partial, so the *second* build finds the `catch2.pc` the first one left,
-  prefers it over the subproject, and dies on a header the install omitted. First run
-  green, second run red, broken by its own output.
-- **libcava**, which linked `libcava.so` into the binary for a module the dependency list
-  deliberately excludes. `/usr/local/lib/x86_64-linux-gnu` is in `ld.so.conf.d`, but the
-  build does not run `ldconfig`, so the installed waybar could not start at all:
-  `error while loading shared libraries: libcava.so`.
-
-The VM got catch2 but not cava, purely because the cava subproject needs build
-dependencies a minimal trixie lacks and a developer's machine happens to have. That is the
-whole argument for the flag. Without it, which modules a build produces depends on what
-else is installed for unrelated reasons, which is the opposite of what this playbook is
-for. With it, a dependency that is not installed disables its feature and nothing else
-happens.
-
-## pywal is installed here, the wallpaper it renders is not
-
-This reverses an earlier decision, kept on the page because half of its reasoning still
-holds. The chain is pywal16 (`uv tool install pywal16`, symlinked at `~/.local/bin/wal`),
-`imagemagick` for its default backend, and the `wallpapers` stow package for the image
-`config.kdl` names. The first two are here now, the third is not, and neither is anything
-that clones or stows the dotfiles.
-
-The argument for leaving all three out was that they only make sense once the dotfiles are
-stowed. That holds for the image, which is useless alone, but not for pywal. This playbook
-already installs `swaybg` *because* pywal shells out to it, and the configs it exists to
-serve read `~/.cache/wal` in three places: niri's `include`, kitty's `include` and waybar's
-`@import`, with tmux inheriting the palette a fourth time through kitty. Installing pywal's
-setter and its backend while leaving pywal itself to a dotfiles playbook that does not
-exist was the inconsistency. It also failed silently: the startup `wal -ei ...` died with
-command not found, so there was no wallpaper and no `~/.cache/wal` at all.
-
-`imagemagick` is named here rather than leaned on from `neovim.yml`, which installs it too,
-per the rule at the top of this page. Without it `wal` fails with "Imagemagick wasn't found
-on your system" and writes nothing. That matters more than it sounds, because waybar's
-`style.css` opens with `@import "~/.cache/wal/colors-waybar.css"` and uses `@foreground`
-and `@color1` from it. A missing colour file is a hard parse error, so waybar exits 1, and
-systemd gives up after five restarts with "Start request repeated too quickly". A desktop
-with no bar at all, from one absent font-and-image utility.
-
-Only waybar dies. niri's include is `optional=true` and kitty ignores an include it cannot
-read, so both keep the fallback colors compiled into their configs.
+Removing a package from this list does not remove it from a machine that already has it.
+`apt autoremove` will not touch it either, because it was installed by name.
 
 ## tmux is here rather than in base.yml
 
 An odd home for a terminal multiplexer, and it is the colors that put it there. The stowed
 `tmux.conf` names palette indices, `colour0` to `colour15`, instead of hex, so the bar
 takes whatever the attached terminal holds in those slots, and on this desktop that is
-kitty carrying pywal's palette.
+kitty carrying noctalia's palette.
 
 The coupling is softer than it sounds. Nothing breaks without the desktop: under any other
 terminal tmux falls back to that terminal's own sixteen colors and the bar stays readable.

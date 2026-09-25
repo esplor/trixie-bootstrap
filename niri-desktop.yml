@@ -1,12 +1,13 @@
 ---
-# The niri desktop: the compositor and xwayland-satellite built from source, plus every
-# package the dotfiles' niri, waybar and kitty configs reach for at runtime.
+# The niri desktop: the compositor, xwayland-satellite and the noctalia shell built from
+# source, plus every package the dotfiles' niri, noctalia and kitty configs reach for at
+# runtime.
 #
 # Run with: uv run ansible-playbook niri-desktop.yml
-# Upgrade by bumping niri_version or xwayland_satellite_version; a build only runs when
-# the installed version differs.
+# Upgrade by bumping niri_version, xwayland_satellite_version or noctalia_version; a
+# build only runs when the installed version differs.
 #
-# Configuration is not this playbook's business. ~/.config/{niri,waybar,kitty} are stow
+# Configuration is not this playbook's business. ~/.config/{niri,noctalia,kitty} are stow
 # symlinks into ~/.dotfiles, so this installs software and stops there.
 #
 # Unlike the other playbooks here, this one names every package it needs, including ones
@@ -21,20 +22,18 @@
     ansible_python_interpreter: /usr/bin/python3
     niri_version: v26.04
     xwayland_satellite_version: v0.8.2
-    # No leading v on this one: waybar tags releases as plain 0.15.0, unlike the other two.
-    waybar_version: 0.15.0
+    noctalia_version: v5.1.0
     rust_version: 1.96.0
     nerd_fonts_version: v3.5.1
     # Only the families the dotfiles' configs name. Nerd Fonts renames Cascadia Code to
-    # CaskaydiaCove, which is what waybar's style.css and kitty.conf actually ask for.
+    # CaskaydiaCove, which is what kitty.conf actually asks for.
     nerd_fonts:
       - CascadiaCode
       - FiraCode
       - JetBrainsMono
     font_dir: /usr/local/share/fonts
-    # There is no play-level become here, so facts would be right, but lookup() is right
-    # in the same way for every task regardless of who it runs as. See base.yml.
-    user_home: "{{ lookup('env', 'HOME') }}"
+    # lookup() rather than a fact, which is right in the same way for every task
+    # regardless of who it runs as. See base.yml.
     cargo: "{{ lookup('env', 'HOME') }}/.cargo/bin/cargo"
     rustup: "{{ lookup('env', 'HOME') }}/.cargo/bin/rustup"
     # cargo defaults its job count to the core count and ninja to the core count plus
@@ -47,57 +46,45 @@
       {{ [[ansible_facts['memtotal_mb'] // 2000,
            ansible_facts['processor_vcpus']] | min, 1] | max }}
     xwayland_satellite_stamp: /usr/local/share/xwayland-satellite-version
-    user_name: "{{ lookup('env', 'USER') }}"
   tasks:
     - name: Install the desktop packages
       become: true
       ansible.builtin.apt:
         name:
-          - brightnessctl  # XF86MonBrightness binds
+          - brightnessctl  # the dotfiles' bl-* shell functions; noctalia has its own
           - ca-certificates  # TLS for the rustup, font and Chrome downloads
           - curl  # fetches the rustup installer
           - fontconfig  # fc-cache, below
-          - fuzzel  # Mod+D
-          - gnome-keyring  # the Secret portal niri-portals.conf prefers
+          # The Secret portal niri-portals.conf prefers, and the Secret Service noctalia
+          # keeps its credentials and encrypted state in.
+          - gnome-keyring
           - gnupg  # dearmors the Chrome signing key, below
-          - imagemagick  # pywal's default backend; without it wal writes nothing
           - kitty  # Mod+Shift+Return
-          - network-manager-applet  # the tray icon, via /etc/xdg/autostart
-          - pavucontrol  # waybar's pulseaudio on-click
+          # Card profiles: Bluetooth A2DP against headset mode, HDMI output. noctalia
+          # routes streams and sets volumes but cannot switch a card's profile.
+          - pavucontrol
           # Debian's recommended set for an audio desktop, and a metapackage so every
           # piece arrives as a Depends. Naming pipewire and wireplumber directly would
           # lose the two that are only Recommends of wireplumber: pipewire-pulse, which
-          # is the PulseAudio server waybar's pulseaudio module, pavucontrol and every
-          # browser and Flatpak app actually talk to, and libspa-0.2-bluetooth, without
-          # which bluetooth audio is silent. It also pulls wireplumber, hence wpctl,
-          # behind the XF86Audio volume binds.
+          # is the PulseAudio server pavucontrol and every browser and Flatpak app
+          # actually talk to, and libspa-0.2-bluetooth, without which bluetooth audio is
+          # silent. noctalia refuses to start without the pipewire daemon.
           - pipewire-audio
-          - playerctl  # the XF86Audio play/stop/prev/next binds
           # deb822_repository parses and writes .sources files through python3-debian and
           # fails outright without it, the same way the apt module needs python3-apt. Named
           # here rather than letting the module's install_python_debian fetch it, so the
           # dependency is visible and goes through --no-install-recommends like the rest.
           - python3-debian
-          - power-profiles-daemon  # waybar module
+          - power-profiles-daemon  # noctalia's power profile control
           # Realtime scheduling for pipewire, pipewire-pulse and wireplumber. Only a
           # Recommends of pipewire-bin, which pipewire-audio does not fix, and without it
           # all three log "RTKit error: ServiceUnknown" and run at normal priority.
           - rtkit
-          - sway-notification-center  # waybar's custom/notification (swaync-client)
-          # Nothing in config.kdl names swaybg, so it looks unused until the desktop comes
-          # up with a grey void behind the windows. It is what pywal shells out to when
-          # the startup "wal -ei ~/Wallpapers/..." sets the background on Wayland, and
-          # pywal reports "Set the new wallpaper" whether or not it found a setter.
-          - swaybg
-          - swaylock  # Super+L
           # Here rather than in base.yml because the stowed tmux.conf names palette
-          # indices, which pywal fills in through kitty. Without the desktop tmux
+          # indices, which noctalia's kitty template fills in. Without the desktop tmux
           # still runs, it just takes its colors from whatever terminal is attached.
           - tmux
-          - ukui-polkit  # the polkit agent config.kdl spawns at startup
           - unzip  # unpacks the Nerd Font archives, below
-          - waybar
-          - wofi  # Mod+Space
           - xdg-desktop-portal
           - xdg-desktop-portal-gnome  # niri-portals.conf prefers gnome, then gtk
           - xdg-desktop-portal-gtk
@@ -107,32 +94,6 @@
         update_cache: true
         cache_valid_time: 3600
 
-    # waybar's keyboard-state module reads the Caps and Num LEDs straight off the evdev
-    # nodes, so it needs read access to /dev/input. niri itself does not: logind hands it
-    # the devices through libseat. Without this the bar still starts and only that one
-    # module dies, with "Failed to find keyboard device: EACCES" in the journal.
-    #
-    # Group membership is only picked up at login, so this takes effect on the next one.
-    # swaybg above is only the setter pywal shells out to; nothing installed pywal
-    # itself, so on a fresh machine the startup "wal -ei ~/Wallpapers/..." failed and
-    # niri, kitty and waybar all kept their fallback colors. A uv tool rather than a
-    # package, since trixie has no pywal16, and by absolute path because bootstrap.sh
-    # installs uv with UV_NO_MODIFY_PATH=1, so a non-interactive PATH has no
-    # ~/.local/bin. No become, so it lands in the invoking user's home, not root's.
-    - name: Install pywal16 as a uv tool
-      ansible.builtin.command:
-        cmd: "{{ user_home }}/.local/bin/uv tool install pywal16"
-        creates: "{{ user_home }}/.local/bin/wal"
-
-    - name: Add the invoking user to the input group
-      become: true
-      ansible.builtin.user:
-        name: "{{ user_name }}"
-        groups: input
-        append: true
-
-    # unarchive refuses to extract into a directory that does not already exist, so these
-    # are created first, one per family the way getnf lays them out.
     - name: Ensure the system font directories exist
       become: true
       ansible.builtin.file:
@@ -239,11 +200,10 @@
       register: xwayland_satellite_installed
       when: xwayland_satellite_stat.stat.exists
 
-    # The absolute path matters. trixie's waybar package is still installed, below, and
-    # a bare "waybar" would resolve to whichever of the two comes first on root's PATH.
-    - name: Check which waybar is installed
-      ansible.builtin.command: /usr/local/bin/waybar --version
-      register: waybar_installed
+    # By absolute path, so a packaged noctalia on PATH later cannot answer for the build.
+    - name: Check which noctalia is installed
+      ansible.builtin.command: /usr/local/bin/noctalia --version
+      register: noctalia_installed
       changed_when: false
       failed_when: false
 
@@ -256,9 +216,10 @@
           {{ not xwayland_satellite_stat.stat.exists
              or (xwayland_satellite_installed.content | default('') | b64decode | trim)
                 != xwayland_satellite_version }}
-        waybar_needs_build: >-
-          {{ (waybar_version | default(''))
-             not in (waybar_installed.stdout | default('')) }}
+        # Prints "noctalia v5.1.0 (<git describe>)", leading v included.
+        noctalia_needs_build: >-
+          {{ (noctalia_version | default(''))
+             not in (noctalia_installed.stdout | default('')) }}
 
     # Everything from here to the end of the builds is skipped on a machine that is already
     # up to date, so a re-run does not pull a pile of -dev packages onto it.
@@ -485,154 +446,158 @@
             state: absent
           when: niri_build.path is defined
 
-    # trixie ships waybar 0.12.0 and stops there; 0.15.0 is in sid but not in
-    # trixie-backports. Three releases of fixes to the modules the dotfiles' bar actually
-    # uses sit in between, the sharpest being a leak in the continuous-script path that
-    # custom/notification runs swaync-client through. See docs/playbooks/niri-desktop.md.
-    #
-    # The apt package above stays installed on purpose, so this does not need to reproduce
-    # waybar's whole runtime library closure, and a machine whose build is skipped or
-    # broken still has a bar. This build goes to /usr/local and shadows it in both places
-    # that matter: /usr/local/bin comes first on PATH, and /usr/local/lib/systemd/user
-    # comes before /usr/lib/systemd/user in systemd's user unit search path.
-    - name: Install the waybar build dependencies
+    # trixie does not package noctalia at all. Its own APT repository has a trixie suite,
+    # but it tracks the latest release and is signed by a third party's key, so the pinned
+    # tag is built here the same way as niri. See docs/playbooks/niri-desktop.md.
+    # noctalia generates code from ext-background-effect-v1.xml, which wayland-protocols
+    # gained in 1.45; trixie has 1.44. Backports has 1.47, and a backports suite is
+    # NotAutomatic, so adding it moves nothing else on the machine off trixie.
+    - name: Add the trixie-backports apt repository
       become: true
-      # Debian's own Build-Depends for waybar 0.15.0-1, minus what this build does not
-      # ask for. Every optional feature in meson_options.txt is "auto", so the packages
-      # named here are exactly what decides which modules get compiled in, and the ones
-      # left out (mpd, jack, sndio, gps, cava, pipewire, mpris, wireplumber) are for
-      # modules the config does not use. libinput-dev is doing double duty: keyboard-
-      # state needs libevdev and backlight needs libudev, and both are Depends of it.
+      ansible.builtin.deb822_repository:
+        name: debian-backports
+        types: deb
+        uris: http://deb.debian.org/debian
+        suites: trixie-backports
+        components: main
+        signed_by: /usr/share/keyrings/debian-archive-keyring.gpg
+        state: present
+        enabled: true
+      when: noctalia_needs_build
+
+    # A task of its own, not update_cache on the install below. The apt module applies
+    # default_release before it refreshes the cache, so on the run that adds the source
+    # apt rejects trixie-backports as "not available in the sources" and never gets as
+    # far as the update that would have made it available. No cache_valid_time either:
+    # the cache has to see the source that was just added.
+    - name: Refresh the apt cache for trixie-backports
+      become: true
+      ansible.builtin.apt:
+        update_cache: true
+      when: noctalia_needs_build
+
+    # latest rather than present, so a machine that already has trixie's 1.44 is moved
+    # up rather than left there.
+    - name: Install wayland-protocols from trixie-backports
+      become: true
+      ansible.builtin.apt:
+        name: wayland-protocols
+        default_release: trixie-backports
+        state: latest
+        install_recommends: false
+      when: noctalia_needs_build
+
+    - name: Install the noctalia build dependencies
+      become: true
+      # BUILDING.md's Debian list, minus just (meson is called directly) and
+      # wayland-protocols (above), plus the two it leaves implicit, and with one swap.
+      # Every one is a hard dependency() in meson.build except jemalloc, which is auto
+      # and made required below so it cannot silently drop.
       ansible.builtin.apt:
         name:
-          - build-essential
-          - cmake  # meson falls back to it for dependencies with no pkg-config file
-          - git
-          - libdbusmenu-gtk3-dev  # tray
-          - libfmt-dev  # meson wants >= 8.1.1, trixie has 10.1.1
-          - libgtk-layer-shell-dev
-          - libgtkmm-3.0-dev
-          # Only used when the compiler has no C++20 chrono time zones. g++ 14 does, but
-          # a failed probe is a hard error under --wrap-mode=nofallback, so it is named.
-          - libhowardhinnant-date-dev
-          - libinput-dev  # keyboard-state, plus backlight through libudev-dev
-          - libjsoncpp-dev
-          - libnl-3-dev  # network
-          - libnl-genl-3-dev
-          - libpulse-dev  # pulseaudio
-          - libsigc++-2.0-dev
-          - libspdlog-dev  # meson wants >= 1.15.2, trixie has exactly that
-          - libupower-glib-dev  # upower, which sees batteries sysfs never exposes
-          - libwayland-dev
-          - libxkbregistry-dev  # not optional in meson.build, unlike the rest
+          - g++  # C++23; trixie's 14 clears the GCC 13 floor
+          - git  # ansible.builtin.git, and meson stamps the revision with git describe
+          - libcairo2-dev
+          # Not upstream's libcurl4-openssl-dev: trixie's libqalculate-dev Depends on
+          # the gnutls flavour, the two Conflict, and apt refuses the whole list. Either
+          # provides the libcurl pkg-config module meson asks for.
+          - libcurl4-gnutls-dev
+          - libegl-dev
+          - libfontconfig-dev
+          - libfreetype-dev
+          - libgles-dev
+          - libglib2.0-dev
+          - libharfbuzz-dev
+          - libical-dev
+          - libjemalloc-dev
+          - libjxl-dev
+          - libmd4c-dev
+          - libpam0g-dev  # the lock screen
+          - libpango1.0-dev
+          - libpipewire-0.3-dev
+          - libpolkit-agent-1-dev
+          - libpolkit-gobject-1-dev
+          - libqalculate-dev  # the launcher calculator
+          - librsvg2-dev
+          - libsdbus-c++-dev
+          - libsecret-1-dev
+          - libsndfile1-dev
+          - libsodium-dev
+          - libstb-dev  # must ship stb/stb_image_resize2.h; trixie's does
+          - libtomlplusplus-dev
+          - libwayland-dev  # Depends on libwayland-bin, hence wayland-scanner
+          - libwebp-dev
+          - libwireplumber-0.5-dev
+          - libxkbcommon-dev
+          - libxml2-dev
           - meson
-          - ninja-build
+          - nlohmann-json3-dev
           - pkgconf
-          - scdoc  # generates the man pages
         state: present
         install_recommends: false
         update_cache: true
         cache_valid_time: 3600
-      when: waybar_needs_build
+      when: noctalia_needs_build
 
-    - name: Build and install waybar {{ waybar_version }}
-      when: waybar_needs_build
+    - name: Build and install noctalia {{ noctalia_version }}
+      when: noctalia_needs_build
       block:
-        - name: Create a build directory for waybar
+        - name: Create a build directory for noctalia
           ansible.builtin.tempfile:
             state: directory
-            suffix: waybar
+            suffix: noctalia
             path: /var/tmp
-          register: waybar_build
+          register: noctalia_build
 
-        - name: Clone waybar {{ waybar_version }}
+        - name: Clone noctalia {{ noctalia_version }}
           ansible.builtin.git:
-            repo: https://github.com/Alexays/Waybar
-            dest: "{{ waybar_build.path }}"
-            version: "{{ waybar_version }}"
+            repo: https://github.com/noctalia-dev/noctalia
+            dest: "{{ noctalia_build.path }}"
+            version: "{{ noctalia_version }}"
             depth: 1
             single_branch: true
 
-        # Two options are not left at their defaults. rfkill is a feature option whose
-        # guard in meson.build is .enabled() rather than .allowed(), so "auto" means off
-        # and the network module loses its rfkill state; Debian's rules passes the same
-        # thing. systemd is disabled because it does not install the unit under the
-        # prefix: it reads systemduserunitdir out of systemd.pc, which is the absolute
-        # /usr/lib/systemd/user, so a plain build would overwrite the file dpkg owns. The
-        # next task writes the unit instead. Everything else is auto, and resolves from
-        # the packages above.
-        - name: Configure the waybar build
+        # PACKAGING.md's recommended configure, not the justfile's: that one adds
+        # -Db_lto=true, which raises the link's memory peak for a build that already has
+        # to fit a small VM. Tests are disabled outright: auto happens to mean off for a
+        # release build today, but that is upstream's rule to change, not this playbook's.
+        # The prefix is baked into the binary as the asset lookup path, so install with
+        # the prefix configured here.
+        - name: Configure the noctalia build
           ansible.builtin.command:
             cmd: >-
               meson setup build
               --prefix=/usr/local
               --buildtype=release
-              --wrap-mode=nofallback
-              -Drfkill=enabled
-              -Dsystemd=disabled
               -Dtests=disabled
-              -Dniri=true
-            chdir: "{{ waybar_build.path }}"
+              -Djemalloc=enabled
+            chdir: "{{ noctalia_build.path }}"
           changed_when: true
 
-        - name: Build waybar
+        - name: Build noctalia
           ansible.builtin.command:
             cmd: meson compile -C build -j {{ build_jobs }}
-            chdir: "{{ waybar_build.path }}"
+            chdir: "{{ noctalia_build.path }}"
           changed_when: true
 
-        # Installs the binary, the man pages and a default config under /usr/local, none
-        # of which collide with a path dpkg owns.
-        - name: Install waybar into /usr/local
+        # The binary, the assets tree it needs at runtime, a .desktop file and an icon,
+        # all under /usr/local. No systemd unit ships and none is written: starting it is
+        # the dotfiles' niri config's business.
+        - name: Install noctalia into /usr/local
           become: true
           ansible.builtin.command:
-            cmd: meson install -C build
-            chdir: "{{ waybar_build.path }}"
+            cmd: meson install -C build --no-rebuild
+            chdir: "{{ noctalia_build.path }}"
           changed_when: true
-
-        # Same trap as /usr/share/wayland-sessions above: copy does not create parents,
-        # and nothing on a trixie box has had a reason to make this one yet.
-        - name: Ensure the /usr/local systemd user unit directory exists
-          become: true
-          ansible.builtin.file:
-            path: /usr/local/lib/systemd/user
-            state: directory
-            mode: "0755"
-
-        # resources/waybar.service.in verbatim, with @prefix@ filled in, which is all
-        # meson would have done. Written here rather than in /usr/lib/systemd/user so it
-        # shadows the packaged unit instead of replacing it; the enablement is by unit
-        # name, so waybar.service stays enabled by the package's preset either way.
-        - name: Install the waybar systemd user unit
-          become: true
-          ansible.builtin.copy:
-            dest: /usr/local/lib/systemd/user/waybar.service
-            mode: "0644"
-            content: |
-              [Unit]
-              Description=Highly customizable Wayland bar for Sway and Wlroots based compositors
-              Documentation=https://github.com/Alexays/Waybar/wiki/
-              PartOf=graphical-session.target
-              After=graphical-session.target
-              Requisite=graphical-session.target
-
-              [Service]
-              ExecStart=/usr/local/bin/waybar
-              ExecReload=kill -SIGUSR2 $MAINPID
-              Restart=on-failure
-
-              [Install]
-              WantedBy=graphical-session.target
       always:
-        - name: Remove the waybar build directory
+        - name: Remove the noctalia build directory
           ansible.builtin.file:
-            path: "{{ waybar_build.path }}"
+            path: "{{ noctalia_build.path }}"
             state: absent
-          when: waybar_build.path is defined
+          when: noctalia_build.path is defined
 
-    # No "systemctl --user daemon-reload" here, and no "systemctl --user enable
-    # waybar.service" either, though niri-build.sh did the former. Both are wrong for this
-    # playbook. See docs/playbooks/niri-desktop.md.
+    # No "systemctl --user daemon-reload" here, though niri-build.sh ended with one. It is
+    # wrong for this playbook. See docs/playbooks/niri-desktop.md.
 
   handlers:
     - name: Rebuild the font cache
