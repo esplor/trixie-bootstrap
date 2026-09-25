@@ -9,6 +9,8 @@ through it. Commands in `README.md`, reasoning in `docs/`, one page per playbook
   is discovered.
 - This file is rules and pointers only. It must not mirror `docs/`: a trap found while
   testing goes on the relevant `docs/` page and in a code comment, never here.
+- Anonymize everything committed. No usernames, real names, emails, hostnames or LAN
+  addresses; write `/home/<user>/...`, including in pasted logs and error output.
 - Start small. One script, one job. No new abstraction until there is a second use case.
 - Playbooks run against localhost. No roles, no inventory, no `ansible.cfg`.
 - The `Makefile` holds one-line aliases for commands too long to retype, nothing else. No
@@ -27,4 +29,3 @@ through it. Commands in `README.md`, reasoning in `docs/`, one page per playbook
 
 Cold installs in a virt-manager VM, `debian-bootstrap-claude` on `qemu:///system`. The
 snapshot loop and the `LC_ALL` trap are in `docs/conventions.md`.
-

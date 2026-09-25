@@ -39,7 +39,7 @@ luarocks story wrong (see below).
 A fresh install fails hard, not gracefully. Every start ended with:
 
 ```
-Error in /home/eslo/.config/nvim/init.lua:
+Error in /home/<user>/.config/nvim/init.lua:
 Too many rounds of missing plugins
 ```
 
