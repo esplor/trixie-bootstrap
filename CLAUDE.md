@@ -13,6 +13,7 @@ through it. Commands in `README.md`, reasoning in `docs/`, one page per playbook
   addresses; write `/home/<user>/...`, including in pasted logs and error output.
 - Start small. One script, one job. No new abstraction until there is a second use case.
 - Playbooks run against localhost. No roles, no inventory, no `ansible.cfg`.
+- Static config files a playbook installs live in `files/`, at their target path.
 - The `Makefile` holds one-line aliases for commands too long to retype, nothing else. No
   build logic, no dependencies between targets; a recipe needing a second line is a script.
 - POSIX `sh` house style: `#!/usr/bin/env sh`, `set -e` plus the pipefail probe,

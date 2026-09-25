@@ -32,6 +32,18 @@ One trap worth knowing: do not export `LC_ALL=C` in the shell you run `ssh` from
 `AcceptEnv`, so it overrides the guest's UTF-8 locale and Ansible refuses to start with
 "Ansible requires the locale encoding to be UTF-8; Detected None".
 
+## files/
+
+Static config files the playbooks install live in `files/`, at their path on the target:
+`files/etc/sysctl.d/99-swappiness.conf` is `/etc/sysctl.d/99-swappiness.conf`. So
+`find files -type f` lists every system file these playbooks customize. `copy` resolves a
+relative `src:` against `files/` next to the playbook, which is why the tasks say
+`src: etc/...`. Each file opens with a comment naming the playbook that installs it.
+
+What stays inline is generated, not configuration: the version stamps are written with
+`content:` from variables. The Chrome source goes through `deb822_repository`, because
+Google's postinst rewrites that file on every upgrade.
+
 ## House style
 
 

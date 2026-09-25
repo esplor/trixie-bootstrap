@@ -10,6 +10,23 @@
     # Pin it here so the module finds the bindings instead of respawning out of .venv.
     ansible_python_interpreter: /usr/bin/python3
   tasks:
+    # Before the package, so its postinst starts zramswap with these settings and dpkg
+    # keeps this file over its own. zramswap only reads it at start, and restarting it on
+    # a running machine means a swapoff that pulls everything swapped back into RAM, so an
+    # existing install picks it up at the next boot instead.
+    - name: Configure zramswap
+      ansible.builtin.copy:
+        src: etc/default/zramswap
+        dest: /etc/default/zramswap
+        mode: "0644"
+
+    - name: Set vm.swappiness for zram
+      ansible.builtin.copy:
+        src: etc/sysctl.d/99-swappiness.conf
+        dest: /etc/sysctl.d/99-swappiness.conf
+        mode: "0644"
+      notify: Reload sysctl settings
+
     - name: Install base packages
       ansible.builtin.apt:
         name:
@@ -24,6 +41,7 @@
           - screen  # Server requirement
           - stow
           - tree
+          - zram-tools
         state: present
         install_recommends: false
         update_cache: true
@@ -38,3 +56,11 @@
         path: "{{ lookup('env', 'HOME') }}/.config"
         state: directory
         mode: "0755"
+
+  handlers:
+    # systemd-sysctl rather than the sysctl binary, which is procps and not on a minimal
+    # install.
+    - name: Reload sysctl settings
+      ansible.builtin.systemd_service:
+        name: systemd-sysctl
+        state: restarted

@@ -1,0 +1,11 @@
+# Installed by base.yml. Read by zramswap at start, so a change applies at the next boot.
+
+# zstd over the packaged lz4: a little more CPU, noticeably better compression.
+ALGO=zstd
+
+# Size of the zram device as a share of RAM. A cap on what it can hold, uncompressed;
+# it reserves nothing.
+PERCENT=100
+
+# Ahead of any disk swap.
+PRIORITY=100
