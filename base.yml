@@ -10,6 +10,27 @@
     # Pin it here so the module finds the bindings instead of respawning out of .venv.
     ansible_python_interpreter: /usr/bin/python3
   tasks:
+    # One deb822 file owns every Debian suite, backports included, in place of the
+    # installer's one-line sources.list. Moved aside rather than deleted, the way
+    # "apt modernize-sources" does it, so a local mirror or extra line is not lost.
+    - name: Install the Debian apt sources
+      ansible.builtin.copy:
+        src: etc/apt/sources.list.d/debian.sources
+        dest: /etc/apt/sources.list.d/debian.sources
+        mode: "0644"
+      register: debian_sources
+
+    - name: Move the one-line sources.list aside
+      ansible.builtin.command:
+        cmd: mv /etc/apt/sources.list /etc/apt/sources.list.bak
+        removes: /etc/apt/sources.list
+      register: sources_list_moved
+
+    - name: Refresh the apt cache for the new sources
+      ansible.builtin.apt:
+        update_cache: true
+      when: debian_sources.changed or sources_list_moved.changed
+
     # Before the package, so its postinst starts zramswap with these settings and dpkg
     # keeps this file over its own. zramswap only reads it at start, and restarting it on
     # a running machine means a swapoff that pulls everything swapped back into RAM, so an

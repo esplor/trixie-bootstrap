@@ -18,6 +18,29 @@ Two details in the play:
 `screen` is in the set as a server requirement rather than a local preference. `tmux` is
 not here despite being its obvious neighbour, see `niri-desktop.yml` for why.
 
+## One debian.sources instead of sources.list
+
+`files/etc/apt/sources.list.d/debian.sources` holds every Debian suite in deb822 format:
+`trixie`, `trixie-updates` and `trixie-backports` from `deb.debian.org`, and
+`trixie-security` from `security.debian.org`, all with `main contrib non-free
+non-free-firmware`, which is what the installer writes. The installer's one-line
+`/etc/apt/sources.list` is moved to `sources.list.bak`, so each suite is listed once. Moved
+rather than deleted, the way `apt modernize-sources` does it, so a local mirror or an extra
+line on some machine is still there to copy back.
+
+It is a file rather than a run of `apt modernize-sources` because that command converts
+whatever the machine happens to have, so its result is not in the repo, and it is a
+one-shot `command` that needs guards to be idempotent. The file states the result.
+
+The cost is that the playbook picks the mirror and the components on every machine.
+Backports is in the list because `niri-desktop.yml` needs `wayland-protocols` from it and
+the laptop's firmware packages came from it; a backports suite is `NotAutomatic`, so
+listing it installs nothing from it. `niri-desktop.yml` installs the same file, so it
+works without this playbook having run.
+
+The cache refresh is its own task, run only when the file or the move changed, since the
+install task's `cache_valid_time` would otherwise skip the update the new sources need.
+
 ## zram swap, zstd, swappiness 150
 
 `zram-tools` gives every machine a compressed swap device in RAM at priority 100, ahead of

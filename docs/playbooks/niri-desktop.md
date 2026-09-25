@@ -273,7 +273,10 @@ The libraries are not the whole story, because `meson.build` also reads protocol
 1.45; trixie has 1.44, so configure fails after every dependency has been found. It is the
 only file missing: every other system protocol noctalia generates code from is in 1.44.
 trixie-backports carries 1.47, so the playbook adds that suite and installs this one
-package from it with `state: latest`, which also moves a machine already on 1.44. A
+package from it with `state: latest`, which also moves a machine already on 1.44. The
+suite comes from `files/etc/apt/sources.list.d/debian.sources`, the same file `base.yml`
+installs (see its page). This playbook installs it too rather than relying on `base.yml`
+having run, for the reason in the first section: without it apt does not know the suite. A
 backports suite is `NotAutomatic`, so adding it changes nothing else on the machine, and
 the package is only XML. niri and xwayland-satellite do not read it at all; their protocol
 definitions come from Rust crates.

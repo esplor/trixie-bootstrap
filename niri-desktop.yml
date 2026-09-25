@@ -477,29 +477,34 @@
     # noctalia generates code from ext-background-effect-v1.xml, which wayland-protocols
     # gained in 1.45; trixie has 1.44. Backports has 1.47, and a backports suite is
     # NotAutomatic, so adding it moves nothing else on the machine off trixie.
-    - name: Add the trixie-backports apt repository
+    # The same file base.yml installs, here too because this playbook must not rely on
+    # base.yml having run: without it the suite is unknown to apt. See
+    # docs/playbooks/base.md for the file itself.
+    - name: Install the Debian apt sources
       become: true
-      ansible.builtin.deb822_repository:
-        name: debian-backports
-        types: deb
-        uris: http://deb.debian.org/debian
-        suites: trixie-backports
-        components: main
-        signed_by: /usr/share/keyrings/debian-archive-keyring.gpg
-        state: present
-        enabled: true
-      when: noctalia_needs_build
+      ansible.builtin.copy:
+        src: etc/apt/sources.list.d/debian.sources
+        dest: /etc/apt/sources.list.d/debian.sources
+        mode: "0644"
+      register: debian_sources
+
+    - name: Move the one-line sources.list aside
+      become: true
+      ansible.builtin.command:
+        cmd: mv /etc/apt/sources.list /etc/apt/sources.list.bak
+        removes: /etc/apt/sources.list
+      register: sources_list_moved
 
     # A task of its own, not update_cache on the install below. The apt module applies
     # default_release before it refreshes the cache, so on the run that adds the source
     # apt rejects trixie-backports as "not available in the sources" and never gets as
     # far as the update that would have made it available. No cache_valid_time either:
     # the cache has to see the source that was just added.
-    - name: Refresh the apt cache for trixie-backports
+    - name: Refresh the apt cache for the new sources
       become: true
       ansible.builtin.apt:
         update_cache: true
-      when: noctalia_needs_build
+      when: debian_sources.changed or sources_list_moved.changed
 
     # latest rather than present, so a machine that already has trixie's 1.44 is moved
     # up rather than left there.
