@@ -20,11 +20,11 @@
     # The apt module needs python3-apt, which is built for the system interpreter.
     # Pin it here so the module finds the bindings instead of respawning out of .venv.
     ansible_python_interpreter: /usr/bin/python3
-    niri_version: v26.04
-    xwayland_satellite_version: v0.8.2
-    noctalia_version: v5.1.0
-    rust_version: 1.96.0
-    nerd_fonts_version: v3.5.1
+    niri_version: v26.04                # https://github.com/YaLTeR/niri/releases
+    xwayland_satellite_version: v0.8.3  # https://github.com/Supreeeme/xwayland-satellite/releases
+    noctalia_version: v5.1.0            # https://github.com/noctalia-dev/noctalia/releases
+    rust_version: 1.98.1                # https://github.com/rust-lang/rust/releases
+    nerd_fonts_version: v3.5.1          # https://github.com/ryanoasis/nerd-fonts/releases
     # Only the families the dotfiles' configs name: CascadiaCode for kitty, which Nerd
     # Fonts renames to the CaskaydiaCove that kitty.conf actually asks for, and FiraCode
     # for alacritty.
