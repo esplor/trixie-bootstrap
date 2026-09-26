@@ -71,6 +71,9 @@
           - zam-plugins
           - fontconfig  # fc-cache, below
           - fonts-cantarell  # gtk-3.0/settings.ini's gtk-font-name
+          # noctalia's emoji picker and Chrome both render emoji through fontconfig, and
+          # nothing else here brings a color emoji font, so they come out as boxes.
+          - fonts-noto-color-emoji
           # The Secret portal niri-portals.conf prefers, and the Secret Service noctalia
           # keeps its credentials and encrypted state in.
           - gnome-keyring

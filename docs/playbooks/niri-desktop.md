@@ -388,3 +388,10 @@ the misses is an error. GTK quietly falls back, and the desktop just looks wrong
   `Failed to load module "canberra-gtk-module"` at startup.
 - `gtk-icon-theme-name=Adwaita` needs nothing, since `adwaita-icon-theme` is a hard
   Depends of libgtk-3.
+
+Fonts outside GTK follow the same rule. kitty and alacritty name Nerd Fonts, installed
+above. noctalia bundles its own icon font and otherwise asks for plain `sans-serif` and
+`monospace`, which `fontconfig-config`'s Depends on `fonts-dejavu-core` always satisfies.
+Chrome Depends on `fonts-liberation`. What nothing brings on a no-Recommends install is a
+color emoji font, so `fonts-noto-color-emoji` is named for noctalia's emoji picker and
+Chrome, which otherwise draw boxes.
