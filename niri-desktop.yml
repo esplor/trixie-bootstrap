@@ -51,6 +51,9 @@
       become: true
       ansible.builtin.apt:
         name:
+          # gtk-3.0/settings.ini's gtk-cursor-theme-name; GTK3 apps read that file
+          # directly since there is no GNOME session providing XSettings here.
+          - bibata-cursor-theme
           - brightnessctl  # the dotfiles' bl-* shell functions; noctalia has its own
           - ca-certificates  # TLS for the rustup, font and Chrome downloads
           - curl  # fetches the rustup installer
@@ -67,14 +70,23 @@
           - mda-lv2
           - zam-plugins
           - fontconfig  # fc-cache, below
+          - fonts-cantarell  # gtk-3.0/settings.ini's gtk-font-name
           # The Secret portal niri-portals.conf prefers, and the Secret Service noctalia
           # keeps its credentials and encrypted state in.
           - gnome-keyring
+          # Ships /usr/share/themes/Adwaita-dark, the named theme gtk-3.0/settings.ini's
+          # gtk-theme-name asks for. GTK3's built-in Adwaita only goes dark through
+          # gtk-application-prefer-dark-theme; a gtk-theme-name it cannot find falls back
+          # to light Adwaita.
+          - gnome-themes-extra
           - gnupg  # dearmors the Chrome signing key, below
           # A patchbay for links noctalia cannot make, such as one app to several
           # outputs at once; noctalia only moves a stream to a single output.
           - helvum
           - kitty  # Mod+Shift+Return
+          # gtk-3.0/settings.ini's gtk-modules. Without it every GTK3 app, Chrome
+          # included, logs Failed to load module "canberra-gtk-module" at startup.
+          - libcanberra-gtk3-module
           # Card profiles: Bluetooth A2DP against headset mode, HDMI output. noctalia
           # routes streams and sets volumes but cannot switch a card's profile.
           - pavucontrol

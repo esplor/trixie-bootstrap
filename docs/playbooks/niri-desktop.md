@@ -368,3 +368,23 @@ terminal tmux falls back to that terminal's own sixteen colors and the bar stays
 What it loses is the wallpaper. The parts that do need a capable terminal, the `─` rule on
 the status bar's upper row and the `RGB` override, want UTF-8 and truecolor rather than
 kitty specifically. `screen` stays in `base.yml`, where it is a server requirement.
+
+## Everything gtk-3.0/settings.ini names is a package
+
+With no GNOME session there is no XSettings daemon, so GTK3 apps read the stowed
+`settings.ini` directly, and each name in it resolves against what is installed. None of
+the misses is an error. GTK quietly falls back, and the desktop just looks wrong.
+
+- `gtk-theme-name=Adwaita-dark` looks up a theme *directory*,
+  `/usr/share/themes/Adwaita-dark`, which only `gnome-themes-extra` (through its Depends
+  `gnome-themes-extra-data`) ships. GTK3's built-in Adwaita does have a dark variant, but
+  it is reached through `gtk-application-prefer-dark-theme`, not by that name. A theme name
+  GTK cannot find falls back to light Adwaita.
+- `gtk-cursor-theme-name=Bibata-Modern-Classic` is `bibata-cursor-theme`.
+- `gtk-font-name=Cantarell 11` is `fonts-cantarell`, which normally arrives with
+  gnome-shell. Without it fontconfig substitutes another sans without saying so.
+- `gtk-modules=canberra-gtk-module` is `libcanberra-gtk3-module`. This one is the only
+  miss that leaves a trace: every GTK3 app, Chrome included, logs
+  `Failed to load module "canberra-gtk-module"` at startup.
+- `gtk-icon-theme-name=Adwaita` needs nothing, since `adwaita-icon-theme` is a hard
+  Depends of libgtk-3.
