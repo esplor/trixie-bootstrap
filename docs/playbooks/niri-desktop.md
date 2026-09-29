@@ -444,3 +444,23 @@ leading `-` makes PAM skip a missing module silently. So it is named in the pack
 or the keyring stays locked with no error anywhere. Its `pam-configs` snippet only adds a
 `password` line, which keeps the keyring password in step with `passwd`. Unlocking only
 works while the keyring password matches the login password.
+
+## Password only at the greeter
+
+Debian's `/etc/pam.d/greetd` is `@include login` plus the keyring lines, and `login`
+includes `common-auth`. On a machine with `libpam-fprintd`, pam-auth-update puts
+`pam_fprintd` first in `common-auth`, so tuigreet asks for a fingerprint after the username
+and falls back to the password after a 10 second timeout. A fingerprint login leaves
+`pam_gnome_keyring` with no password, so the login keyring stays locked, and noctalia's
+credentials with it.
+
+`files/etc/pam.d/greetd` replaces it. PAM's `include` control, unlike `@include`, takes
+only the lines of its own type from the other file, so `account`, `session` and `password`
+still come from `login`, and `auth` is written out: `login`'s own auth lines with
+`common-auth` reduced to `pam_unix.so`. `sudo` and the lock screen still go through
+`common-auth` and keep the fingerprint. The file is a conffile of greetd, so it goes in
+before the package, like `config.toml`.
+
+A Windows Hello fingerprint cannot be reused. The ELAN sensor tested here (04f3:0c4b)
+matches on the host, not on the chip, so each OS keeps its own prints. Enrolling with
+`fprintd-enroll` on Linux leaves the Windows ones alone.

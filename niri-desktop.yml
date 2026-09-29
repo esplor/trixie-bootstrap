@@ -663,6 +663,15 @@
         dest: /etc/greetd/config.toml
         mode: "0644"
 
+    # Password only at the greeter, so pam_gnome_keyring always has one to unlock the
+    # login keyring with. A conffile of greetd too, so it also goes in before the package.
+    - name: Keep the fingerprint out of greetd's PAM stack
+      become: true
+      ansible.builtin.copy:
+        src: etc/pam.d/greetd
+        dest: /etc/pam.d/greetd
+        mode: "0644"
+
     - name: Install greetd and tuigreet
       become: true
       ansible.builtin.apt:

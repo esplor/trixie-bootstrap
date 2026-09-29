@@ -1,0 +1,21 @@
+#%PAM-1.0
+# Installed by niri-desktop.yml. Debian's version with its "@include login" split up.
+#
+# Password only. login's auth lines come from common-auth, which pam-auth-update fills
+# with pam_fprintd where a fingerprint reader is set up. A fingerprint login would leave
+# pam_gnome_keyring below with no password to unlock the login keyring. So auth is
+# login's own lines with common-auth reduced to pam_unix, and only account, session and
+# password are included from login. sudo and a lock screen keep the fingerprint.
+auth       optional   pam_faildelay.so delay=3000000
+auth       requisite  pam_nologin.so
+auth       required   pam_unix.so nullok
+auth       optional   pam_group.so
+account    include    login
+session    include    login
+password   include    login
+
+-auth        optional        pam_gnome_keyring.so
+-auth        optional        pam_kwallet5.so
+
+-session     optional        pam_gnome_keyring.so auto_start
+-session     optional        pam_kwallet5.so auto_start
