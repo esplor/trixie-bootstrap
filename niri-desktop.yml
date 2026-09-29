@@ -677,6 +677,10 @@
       ansible.builtin.apt:
         name:
           - greetd
+          # logind asks polkit whether the greeter may power off and reboot. Here it
+          # otherwise only arrives through libpolkit-gobject-1-dev, a noctalia build
+          # dependency.
+          - polkitd
           - tuigreet
         state: present
         install_recommends: false

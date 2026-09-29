@@ -9,5 +9,9 @@ vt = 7
 # tuigreet lists the .desktop files in this directory, which is where niri-desktop.yml
 # installs niri.desktop. Its Exec=niri-session resolves through /usr/local/bin because
 # greetd sources /etc/profile before running a session.
-command = "tuigreet --sessions /usr/share/wayland-sessions"
+#
+# tuigreet's F12 power menu defaults to "shutdown -h now", which is in /usr/sbin and not
+# on _greetd's PATH. systemctl is in /usr/bin and goes through logind, whose polkit
+# rules let an active session power off and reboot without a password.
+command = "tuigreet --sessions /usr/share/wayland-sessions --power-shutdown 'systemctl poweroff' --power-reboot 'systemctl reboot'"
 user = "_greetd"

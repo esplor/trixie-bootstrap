@@ -433,6 +433,15 @@ manager: File exists"
 
 `systemctl show display-manager.service -p Names` shows which unit holds the name.
 
+tuigreet's power menu (F12) runs `setsid shutdown -h now` and `setsid shutdown -r now` by
+default, as `_greetd`. That user gets `ENV_PATH` from `/etc/login.defs`, which has no
+`/usr/sbin`, so both fail with command not found. `--power-shutdown 'systemctl poweroff'`
+and `--power-reboot 'systemctl reboot'` use `/usr/bin` instead and go through logind,
+whose polkit actions `org.freedesktop.login1.power-off` and `.reboot` are `yes` for an
+active session, and the greeter is the active session on its seat. That needs `polkitd`,
+which would otherwise only arrive as a Depends of a noctalia build dependency, so it is
+named with greetd.
+
 Starting niri from a shell profile on tty1 is now redundant. It does not interfere with
 the greeter, because a greetd session runs on VT 7. That snippet lives in the dotfiles,
 not here.
