@@ -395,3 +395,44 @@ above. noctalia bundles its own icon font and otherwise asks for plain `sans-ser
 Chrome Depends on `fonts-liberation`. What nothing brings on a no-Recommends install is a
 color emoji font, so `fonts-noto-color-emoji` is named for noctalia's emoji picker and
 Chrome, which otherwise draw boxes.
+
+## greetd and tuigreet, on VT 7, from the next boot
+
+Both are in trixie, so the login screen is two packages and one config file,
+`files/etc/greetd/config.toml`. tuigreet runs on the console and needs no compositor of
+its own, which is why it was chosen over a graphical greeter.
+`--sessions /usr/share/wayland-sessions` lists the `niri.desktop` installed above, and
+greetd sources `/etc/profile` before it runs a session (`source_profile` defaults to
+true), so its `Exec=niri-session` finds `/usr/local/bin`.
+
+The config goes in before the package, the same trick as zramswap in `base.yml`: the apt
+module passes `--force-confold`, so dpkg keeps the file that is already there.
+
+VT 7 is Debian's default, and its `greetd.service` already has
+`Conflicts=getty@tty7.service`. Choosing VT 1 would need a drop-in to keep it from
+fighting `getty@tty1`. On VT 7 greetd switches the console there at boot, and tty1 stays a
+plain text login to fall back on.
+
+greetd's postinst enables the unit but does not start it under systemd, and the playbook
+does not start it either. Starting it mid-run would switch the console to VT 7, away from
+a niri session on tty1 if the playbook is run from there. The playbook still enables it
+explicitly, because the postinst only enables it on a first install.
+
+That task also does a `daemon-reload`, because the postinst does not, which a machine that
+once had another display manager needs. greetd's unit has `Alias=display-manager.service`,
+and on a laptop where gdm3 had been removed and masked, systemd still held
+`display-manager.service` as a name of the masked `gdm3.service` from the old symlink it
+loaded at boot. The postinst repointed the symlink at greetd, but until a reload greetd
+could not claim the alias, and enabling it failed with:
+
+```
+Error loading unit file 'greetd.service': org.freedesktop.DBus.Error.FileExists
+"Unit greetd.service failed to load properly, please adjust/correct and reload service
+manager: File exists"
+```
+
+`systemctl show display-manager.service -p Names` shows which unit holds the name.
+
+Starting niri from a shell profile on tty1 is now redundant. It does not interfere with
+the greeter, because a greetd session runs on VT 7. That snippet lives in the dotfiles,
+not here.

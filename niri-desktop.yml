@@ -644,6 +644,47 @@
     # No "systemctl --user daemon-reload" here, though niri-build.sh ended with one. It is
     # wrong for this playbook. See docs/playbooks/niri-desktop.md.
 
+    # The config before the package, so dpkg keeps this file over its own. copy does not
+    # create parents, and nothing has made /etc/greetd yet on a fresh machine.
+    - name: Ensure the greetd config directory exists
+      become: true
+      ansible.builtin.file:
+        path: /etc/greetd
+        state: directory
+        mode: "0755"
+
+    - name: Configure greetd
+      become: true
+      ansible.builtin.copy:
+        src: etc/greetd/config.toml
+        dest: /etc/greetd/config.toml
+        mode: "0644"
+
+    - name: Install greetd and tuigreet
+      become: true
+      ansible.builtin.apt:
+        name:
+          - greetd
+          - tuigreet
+        state: present
+        install_recommends: false
+        update_cache: true
+        cache_valid_time: 3600
+
+    # Enabled, never started. Starting it would switch the console to VT 7 in the middle
+    # of the run, away from a niri session on tty1 if that is where this was run from.
+    # It takes over at the next boot. See docs/playbooks/niri-desktop.md.
+    #
+    # daemon_reload because the postinst does not reload. Where systemd already holds
+    # display-manager.service as another unit's alias, such as a gdm3 that was removed
+    # and masked, greetd fails to load with "File exists" until it does.
+    - name: Enable greetd at boot
+      become: true
+      ansible.builtin.systemd_service:
+        name: greetd.service
+        enabled: true
+        daemon_reload: true
+
   handlers:
     - name: Rebuild the font cache
       become: true

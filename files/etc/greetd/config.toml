@@ -1,0 +1,13 @@
+# Installed by niri-desktop.yml. Read by greetd at start, so a change applies at the next boot.
+
+[terminal]
+# Debian's greetd.service already Conflicts=getty@tty7.service, so VT 7 needs no unit
+# override. greetd switches to it at boot, and tty1 stays a plain text login.
+vt = 7
+
+[default_session]
+# tuigreet lists the .desktop files in this directory, which is where niri-desktop.yml
+# installs niri.desktop. Its Exec=niri-session resolves through /usr/local/bin because
+# greetd sources /etc/profile before running a session.
+command = "tuigreet --sessions /usr/share/wayland-sessions"
+user = "_greetd"
