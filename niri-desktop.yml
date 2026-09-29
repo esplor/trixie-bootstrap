@@ -90,6 +90,9 @@
           # gtk-3.0/settings.ini's gtk-modules. Without it every GTK3 app, Chrome
           # included, logs Failed to load module "canberra-gtk-module" at startup.
           - libcanberra-gtk3-module
+          # Only a Recommends of gnome-keyring. greetd's PAM stack names the module to
+          # unlock the login keyring at login, and skips it silently when it is missing.
+          - libpam-gnome-keyring
           # Card profiles: Bluetooth A2DP against headset mode, HDMI output. noctalia
           # routes streams and sets volumes but cannot switch a card's profile.
           - pavucontrol

@@ -436,3 +436,11 @@ manager: File exists"
 Starting niri from a shell profile on tty1 is now redundant. It does not interfere with
 the greeter, because a greetd session runs on VT 7. That snippet lives in the dotfiles,
 not here.
+
+Debian's `/etc/pam.d/greetd` has `-auth` and `-session optional pam_gnome_keyring.so`
+lines, which unlock the login keyring with the password typed into tuigreet. The module
+comes from `libpam-gnome-keyring`, which is only a Recommends of `gnome-keyring`, and the
+leading `-` makes PAM skip a missing module silently. So it is named in the package list,
+or the keyring stays locked with no error anywhere. Its `pam-configs` snippet only adds a
+`password` line, which keeps the keyring password in step with `passwd`. Unlocking only
+works while the keyring password matches the login password.
