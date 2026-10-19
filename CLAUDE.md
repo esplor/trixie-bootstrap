@@ -30,3 +30,9 @@ through it. Commands in `README.md`, reasoning in `docs/`, one page per playbook
 
 Cold installs in a virt-manager VM, `debian-bootstrap-claude` on `qemu:///system`. The
 snapshot loop and the `LC_ALL` trap are in `docs/conventions.md`.
+
+## Housekeeping
+
+"Housekeeping" means checking every pinned `*_version` in the playbooks against its
+upstream release URL. For each newer release, read the release notes and the build-file
+diff for new or raised dependencies, then bump it in its own commit.

@@ -10,7 +10,7 @@
   connection: local
   vars:
     ansible_python_interpreter: /usr/bin/python3
-    nvim_version: v0.12.6
+    nvim_version: v0.12.6  # https://github.com/neovim/neovim/releases
     user_home: "{{ lookup('env', 'HOME') }}"
   tasks:
     # Unconditional, unlike the build deps below: these are what the dotfiles' config
