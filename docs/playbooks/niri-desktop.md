@@ -317,6 +317,17 @@ registers `org.freedesktop.Notifications` and `org.kde.StatusNotifierWatcher`, s
 else in the session may hold either name. That is one of the reasons the packages below are
 gone rather than merely unused.
 
+The same goes for an upgrade: the shell that is already running keeps the old binary, and
+`/proc/<pid>/exe` shows `/usr/local/bin/noctalia (deleted)` until it is restarted. The
+restart needs a wait in it. `pkill -x noctalia && niri msg action spawn -- noctalia` starts
+the new instance before the old one has exited, and the new one quits at once, most likely
+on the `noctalia-wayland-1.lock` the old one still holds. Waiting for the old process to
+be gone first works:
+
+```sh
+pkill -x noctalia; while pgrep -x noctalia >/dev/null; do sleep 0.2; done; niri msg action spawn -- noctalia
+```
+
 ## What noctalia replaced, and what it did not
 
 noctalia is one process covering what used to be a stack of small tools, so the playbook

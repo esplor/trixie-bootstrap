@@ -630,7 +630,8 @@
 
         # The binary, the assets tree it needs at runtime, a .desktop file and an icon,
         # all under /usr/local. No systemd unit ships and none is written: starting it is
-        # the dotfiles' niri config's business.
+        # the dotfiles' niri config's business. A running shell keeps the old binary until
+        # it is restarted; see docs/playbooks/niri-desktop.md.
         - name: Install noctalia into /usr/local
           become: true
           ansible.builtin.command:
