@@ -290,7 +290,8 @@ error prevents.
 
 Two more things are worth checking first because packagers hit them: `libstb-dev` must ship
 `stb/stb_image_resize2.h` (trixie's `0.0~git20241109` does), and meson needs
-`wireplumber-0.5`, which trixie has. `g++` 14 clears the GCC 13 floor for C++23.
+`wireplumber-0.5`, which trixie has. `g++` 14 clears the GCC 13 floor for C++23. Since
+5.3, `meson.build` also asks for meson 1.1 and pango 1.50; trixie has 1.7 and 1.56.
 
 The configure is PACKAGING.md's rather than the justfile's. `just configure release` adds
 `-Db_lto=true`, which moves a large part of the work into the final link and raises its
