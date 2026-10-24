@@ -34,5 +34,7 @@ snapshot loop and the `LC_ALL` trap are in `docs/conventions.md`.
 ## Housekeeping
 
 "Housekeeping" means checking every pinned `*_version` in the playbooks against its
-upstream release URL. For each newer release, read the release notes and the build-file
-diff for new or raised dependencies, then bump it in its own commit.
+upstream release URL, and every `>=` floor in `pyproject.toml` against PyPI. For each
+newer release, read the release notes and the build-file diff for new or raised
+dependencies, then bump it in its own commit (for `pyproject.toml`, with `uv lock` so
+`uv.lock` moves too).
