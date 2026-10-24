@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Turn a fresh Debian 13 (trixie) install into a working system"
 requires-python = ">=3.13"
 dependencies = [
-    "ansible-core>=2.21.3",
+    "ansible-core>=2.21.5",
 ]
 
 [tool.uv]
@@ -16,6 +16,6 @@ default-groups = []
 
 [dependency-groups]
 dev = [
-    "ansible-lint>=26.8.0",
-    "zensical>=0.0.59",
+    "ansible-lint>=26.10.1",
+    "zensical>=0.0.72",
 ]
