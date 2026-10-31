@@ -630,14 +630,15 @@
 
         # The binary, the assets tree it needs at runtime, a .desktop file and an icon,
         # all under /usr/local. No systemd unit ships and none is written: starting it is
-        # the dotfiles' niri config's business. A running shell keeps the old binary until
-        # it is restarted; see docs/playbooks/niri-desktop.md.
+        # the dotfiles' niri config's business. A running shell keeps the old binary, so
+        # the handler restarts it.
         - name: Install noctalia into /usr/local
           become: true
           ansible.builtin.command:
             cmd: meson install -C build --no-rebuild
             chdir: "{{ noctalia_build.path }}"
           changed_when: true
+          notify: Restart noctalia
       always:
         - name: Remove the noctalia build directory
           ansible.builtin.file:
@@ -708,3 +709,30 @@
       ansible.builtin.command:
         cmd: fc-cache -f {{ font_dir }}
       changed_when: true
+
+    # Only inside a running niri session: without NIRI_SOCKET (a cold install, a TTY, ssh)
+    # niri msg cannot reach the compositor, and with no shell running there is nothing to
+    # restart. The new instance quits at once if the old one still holds its lock file,
+    # so wait for it to exit, but not forever. See docs/playbooks/niri-desktop.md.
+    - name: Restart noctalia
+      ansible.builtin.shell:
+        cmd: |
+          set -e
+          uid=$(id -u)
+          if [ -z "${NIRI_SOCKET:-}" ] || ! pgrep -x -U "$uid" noctalia >/dev/null; then
+            echo skipped
+            exit 0
+          fi
+          pkill -x -U "$uid" noctalia
+          i=0
+          while pgrep -x -U "$uid" noctalia >/dev/null; do
+            i=$((i + 1))
+            if [ "$i" -gt 50 ]; then
+              echo "noctalia did not exit within 10s" >&2
+              exit 1
+            fi
+            sleep 0.2
+          done
+          niri msg action spawn -- noctalia
+      register: noctalia_restart
+      changed_when: noctalia_restart.stdout != 'skipped'

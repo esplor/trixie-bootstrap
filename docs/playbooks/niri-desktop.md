@@ -322,7 +322,13 @@ The same goes for an upgrade: the shell that is already running keeps the old bi
 restart needs a wait in it. `pkill -x noctalia && niri msg action spawn -- noctalia` starts
 the new instance before the old one has exited, and the new one quits at once, most likely
 on the `noctalia-wayland-1.lock` the old one still holds. Waiting for the old process to
-be gone first works:
+be gone first works, and that is what the playbook's `Restart noctalia` handler does after
+a build, giving the old process 10 seconds before it fails the run.
+
+The handler only acts inside a running niri session. It needs `NIRI_SOCKET`, which a local
+Ansible run inherits from the terminal it was started in, and a noctalia process owned by
+the same user. On a cold install, from a TTY or over ssh it reports "skipped" and leaves
+the restart to the next login, or to the same thing by hand:
 
 ```sh
 pkill -x noctalia; while pgrep -x noctalia >/dev/null; do sleep 0.2; done; niri msg action spawn -- noctalia
