@@ -33,10 +33,10 @@ whatever the machine happens to have, so its result is not in the repo, and it i
 one-shot `command` that needs guards to be idempotent. The file states the result.
 
 The cost is that the playbook picks the mirror and the components on every machine.
-Backports is in the list because `niri-desktop.yml` needs `wayland-protocols` from it and
-the laptop's firmware packages came from it; a backports suite is `NotAutomatic`, so
-listing it installs nothing from it. `niri-desktop.yml` installs the same file, so it
-works without this playbook having run.
+Backports is in the list because `niri-desktop.yml` needs `wayland-protocols` from it,
+`neovim.yml` needs go from it and the laptop's firmware packages came from it; a backports
+suite is `NotAutomatic`, so listing it installs nothing from it. `niri-desktop.yml` and
+`neovim.yml` install the same file, so they work without this playbook having run.
 
 The cache refresh is its own task, run only when the file or the move changed, since the
 install task's `cache_valid_time` would otherwise skip the update the new sources need.

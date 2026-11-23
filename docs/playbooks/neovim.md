@@ -99,7 +99,6 @@ Left out on purpose:
   shadowed by nvm later.
 - **`tree-sitter-cli`** — nvim-treesitter wants v0.26.1 and trixie ships 0.22.6, so apt
   cannot satisfy it. It belongs in the plugin spec as a source build.
-- **`lazygit`** — not packaged in Debian at all.
 - **`ghostscript`, `tectonic`, `mmdc`** — image.nvim's PDF, LaTeX and Mermaid renderers.
   Optional extras, not part of running the config.
 
@@ -123,3 +122,32 @@ servers, so on a machine without it Python quietly gets formatted by something e
 at all. mason would install its own copy into a PyPI venv that serves nvim and nothing
 else. `uv tool install ruff` puts one in `~/.local/bin` for the editor and the shell both,
 and trixie has no ruff package to use instead.
+
+## lazygit is built from source
+
+trixie does package lazygit, at 0.50.0, far behind upstream. Upstream also publishes release
+tarballs with a `checksums.txt`, but nvim, niri and noctalia are all built here from a pinned
+tag, so lazygit is too. Bumping `lazygit_version` rebuilds it.
+
+The catch is go. The `go.mod` of v0.66.3 asks for go 1.26.0 and trixie has 1.24, so the
+toolchain comes from trixie-backports. The playbook names the versioned package,
+`golang-1.27-go`, rather than `golang-go`, for two reasons: `state: present` is then enough,
+where `golang-go` would need `state: latest` to move off trixie's, and ansible-lint rejects
+that. And the binary has a fixed path, `/usr/lib/go-1.27/bin/go`, so nothing depends on PATH.
+The price is that `lazygit_go` is raised by hand when `go.mod` outgrows it or backports drops
+that package. `GOTOOLCHAIN=local` makes the first case a build failure instead of a silent
+toolchain download.
+
+Four things about the build:
+
+- `main.version` is only set through `-ldflags`, and the version check reads it back from
+  `lazygit --version`. Dropping the flag would rebuild on every run.
+- Upstream vendors its dependencies, so the build needs no network beyond the clone, and
+  `GOPROXY=off` holds it to that. Vendoring alone was not enough: go's VCS stamping still
+  asked the proxy about the tag and left `~/go/pkg/mod/cache/download/.../v0.66.2.info`
+  behind, hence `-buildvcs=false`.
+- `HOME` points at the build tree, because otherwise go writes `~/go`, `~/.cache/go-build`
+  and its local telemetry counters in `~/.config/go/telemetry`. They all go with the tree.
+- `CGO_ENABLED=0` matches upstream's release build, so it needs no C compiler.
+
+The go toolchain stays installed afterwards, like nvim's build dependencies.

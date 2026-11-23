@@ -1,16 +1,21 @@
 ---
 # Build and install Neovim from source, the way ~/.debian-scripts/nvim-build.sh does it,
 # but idempotent and self-cleaning. trixie ships 0.10, which is too old for the lazy.nvim
-# config in the dotfiles.
+# config in the dotfiles. lazygit is built from source here too.
 #
 # Run with: uv run ansible-playbook neovim.yml
-# Upgrade by bumping nvim_version; the build only runs when the installed nvim differs.
+# Upgrade by bumping nvim_version or lazygit_version; each build only runs when the
+# installed version differs.
 - name: Neovim from source
   hosts: localhost
   connection: local
   vars:
     ansible_python_interpreter: /usr/bin/python3
     nvim_version: v0.12.6  # https://github.com/neovim/neovim/releases
+    lazygit_version: v0.66.3  # https://github.com/jesseduffield/lazygit/releases
+    # Not a *_version: the suffix of Debian's golang-1.27-go in trixie-backports, raised
+    # when lazygit's go.mod outgrows it or backports moves on.
+    lazygit_go: "1.27"
     user_home: "{{ lookup('env', 'HOME') }}"
   tasks:
     # Unconditional, unlike the build deps below: these are what the dotfiles' config
@@ -122,3 +127,96 @@
             path: "{{ nvim_build.path }}"
             state: absent
           when: nvim_build.path is defined
+
+    - name: Check which lazygit is installed
+      ansible.builtin.command: lazygit --version
+      register: lazygit_installed
+      changed_when: false
+      failed_when: false
+
+    # trixie's own lazygit is 0.50 and upstream's release tarball would be the one thing in
+    # these playbooks not built here, so the pinned tag is built like nvim. It needs a newer
+    # go than trixie's 1.24. See docs/playbooks/neovim.md.
+    - name: Build and install lazygit {{ lazygit_version }}
+      # The trailing comma, because the output also has "git version=" and a prefix of the
+      # pinned version must not count as a match.
+      when: ('version=' ~ (lazygit_version | regex_replace('^v', '')) ~ ',') not in (lazygit_installed.stdout | default(''))
+      block:
+        # The same file base.yml installs, because this playbook must not rely on base.yml
+        # having run: without it the suite is unknown to apt.
+        - name: Install the Debian apt sources
+          become: true
+          ansible.builtin.copy:
+            src: etc/apt/sources.list.d/debian.sources
+            dest: /etc/apt/sources.list.d/debian.sources
+            mode: "0644"
+          register: debian_sources
+
+        - name: Move the one-line sources.list aside
+          become: true
+          ansible.builtin.command:
+            cmd: mv /etc/apt/sources.list /etc/apt/sources.list.bak
+            removes: /etc/apt/sources.list
+          register: sources_list_moved
+
+        # A task of its own, not update_cache on the install below: the apt module applies
+        # default_release before it refreshes the cache, so it would reject trixie-backports
+        # on the run that adds it.
+        - name: Refresh the apt cache for the new sources
+          become: true
+          ansible.builtin.apt:
+            update_cache: true
+          when: debian_sources.changed or sources_list_moved.changed
+
+        - name: Install go from trixie-backports
+          become: true
+          ansible.builtin.apt:
+            name: golang-{{ lazygit_go }}-go
+            default_release: trixie-backports
+            state: present
+            install_recommends: false
+
+        - name: Create a build directory
+          ansible.builtin.tempfile:
+            state: directory
+            suffix: lazygit
+          register: lazygit_build
+
+        - name: Clone lazygit {{ lazygit_version }}
+          ansible.builtin.git:
+            repo: https://github.com/jesseduffield/lazygit
+            dest: "{{ lazygit_build.path }}/src"
+            version: "{{ lazygit_version }}"
+            depth: 1
+            single_branch: true
+
+        # main.version is only set through ldflags, and the check above reads it back.
+        # -buildvcs=false because stamping the tag makes go ask the module proxy about it.
+        - name: Build lazygit
+          ansible.builtin.command:
+            cmd: >-
+              /usr/lib/go-{{ lazygit_go }}/bin/go build -buildvcs=false
+              -ldflags "-s -w -X main.version={{ lazygit_version | regex_replace('^v', '') }} -X main.buildSource=source"
+              -o {{ lazygit_build.path }}/lazygit .
+            chdir: "{{ lazygit_build.path }}/src"
+          environment:
+            CGO_ENABLED: "0"  # as upstream's release build does; no gcc involved
+            # go leaves ~/go, ~/.cache/go-build and ~/.config/go/telemetry behind otherwise.
+            HOME: "{{ lazygit_build.path }}"
+            # Dependencies are vendored, so anything reaching for the proxy is a bug.
+            GOPROXY: "off"
+            # Fail on a go.mod that outgrows lazygit_go rather than fetching a toolchain.
+            GOTOOLCHAIN: local
+          changed_when: true
+
+        - name: Install lazygit into /usr/local/bin
+          become: true
+          ansible.builtin.command:
+            cmd: install -m 0755 {{ lazygit_build.path }}/lazygit /usr/local/bin/lazygit
+          changed_when: true
+      always:
+        - name: Remove the lazygit build directory
+          ansible.builtin.file:
+            path: "{{ lazygit_build.path }}"
+            state: absent
+          when: lazygit_build.path is defined

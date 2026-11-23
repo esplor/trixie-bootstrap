@@ -1,5 +1,5 @@
-# Installed by base.yml and niri-desktop.yml, which move the installer's one-line
-# /etc/apt/sources.list aside to sources.list.bak. trixie-backports is NotAutomatic:
+# Installed by base.yml, neovim.yml and niri-desktop.yml, which move the installer's
+# one-line /etc/apt/sources.list aside to sources.list.bak. trixie-backports is NotAutomatic:
 # nothing comes from it unless asked for by name or with -t trixie-backports.
 Types: deb
 URIs: http://deb.debian.org/debian
