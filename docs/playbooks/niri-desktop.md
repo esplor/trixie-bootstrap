@@ -304,18 +304,20 @@ was broken exactly that way, compiling a test suite against a partial Catch2 lef
 `/usr/local`. `-Djemalloc=enabled` turns upstream's `auto` into a hard requirement, so a
 missing `libjemalloc-dev` fails the build instead of quietly producing a binary without
 it. There is no `subprojects/` directory, so meson has nothing to fall back to and
-download; the vendored code lives in `third_party/`.
+download; the vendored code lives in `third_party/` and `lib/third_party/`.
 
-The prefix is compiled into the binary as the asset lookup path, and the `assets/` tree is
-required at runtime, so the install is `meson install` from the configured build, never a
-copy of the binary. `--no-rebuild` keeps the root-owned install step from recompiling
-anything as root.
+The prefix is compiled into the binary as the asset lookup path, the `assets/` tree is
+required at runtime, and since v5.6.0 the lock screen authenticates through a separate
+`/usr/local/libexec/noctalia/noctalia-pam-helper`, so the install is `meson install` from
+the configured build, never a copy of the binary. `--no-rebuild` keeps the root-owned
+install step from recompiling anything as root.
 
-What the playbook deliberately does not do is start it. No systemd unit ships and none is
-written; the dotfiles' niri config has `spawn-at-startup "noctalia"`. On niri, noctalia
-registers `org.freedesktop.Notifications` and `org.kde.StatusNotifierWatcher`, so nothing
-else in the session may hold either name. That is one of the reasons the packages below are
-gone rather than merely unused.
+What the playbook deliberately does not do is start it. Since v5.5.0 upstream keeps an
+experimental user unit in the assets tree (`share/noctalia/assets/noctalia.service`); it is
+not enabled and none is written. The dotfiles' niri config has
+`spawn-at-startup "noctalia"`. On niri, noctalia registers `org.freedesktop.Notifications`
+and `org.kde.StatusNotifierWatcher`, so nothing else in the session may hold either name.
+That is one of the reasons the packages below are gone rather than merely unused.
 
 The same goes for an upgrade: the shell that is already running keeps the old binary, and
 `/proc/<pid>/exe` shows `/usr/local/bin/noctalia (deleted)` until it is restarted. The

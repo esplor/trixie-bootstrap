@@ -22,7 +22,7 @@
     ansible_python_interpreter: /usr/bin/python3
     niri_version: v26.04                # https://github.com/YaLTeR/niri/releases
     xwayland_satellite_version: v0.8.3  # https://github.com/Supreeeme/xwayland-satellite/releases
-    noctalia_version: v5.4.1            # https://github.com/noctalia-dev/noctalia/releases
+    noctalia_version: v5.6.0            # https://github.com/noctalia-dev/noctalia/releases
     rust_version: 1.99.1                # https://github.com/rust-lang/rust/releases
     nerd_fonts_version: v3.5.1          # https://github.com/ryanoasis/nerd-fonts/releases
     # Only the families the dotfiles' configs name: CascadiaCode for kitty, which Nerd
@@ -628,10 +628,12 @@
             chdir: "{{ noctalia_build.path }}"
           changed_when: true
 
-        # The binary, the assets tree it needs at runtime, a .desktop file and an icon,
-        # all under /usr/local. No systemd unit ships and none is written: starting it is
-        # the dotfiles' niri config's business. A running shell keeps the old binary, so
-        # the handler restarts it.
+        # The binary, the assets tree it needs at runtime, the lock screen's PAM helper
+        # (libexec/noctalia, since v5.6.0), a .desktop file and an icon, all under
+        # /usr/local. The systemd user unit upstream keeps in the assets tree (since
+        # v5.5.0) is not enabled and none is written: starting it is the dotfiles' niri
+        # config's business. A running shell keeps the old binary, so the handler
+        # restarts it.
         - name: Install noctalia into /usr/local
           become: true
           ansible.builtin.command:
