@@ -134,7 +134,9 @@ instead of relying on PATH.
 
 `rustup-init` refuses to run over an existing rustup, so bumping `rust_version` on a machine
 that already has it goes through `rustup default` instead, which installs the toolchain if
-it is missing.
+it is missing. That only happens on a run that builds niri or xwayland-satellite: a bump of
+`rust_version` alone is a no-op, and the new toolchain arrives with the next build that
+needs it.
 
 ## Ansible module traps, all of them found by running it
 
