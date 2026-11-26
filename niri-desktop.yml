@@ -526,7 +526,7 @@
 
     # latest rather than present, so a machine that already has trixie's 1.44 is moved
     # up rather than left there.
-    - name: Install wayland-protocols from trixie-backports
+    - name: Install wayland-protocols from trixie-backports  # noqa: package-latest
       become: true
       ansible.builtin.apt:
         name: wayland-protocols
